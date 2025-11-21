@@ -27,7 +27,7 @@ An AI-powered camera coach that helps you take better photos in real-time.
     ```
     AWS_ACCESS_KEY_ID=your_key
     AWS_SECRET_ACCESS_KEY=your_secret
-    AWS_REGION=us-east-1
+    AWS_REGION=us-west-2
     ```
 4.  Run the app:
     ```bash
