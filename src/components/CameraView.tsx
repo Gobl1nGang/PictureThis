@@ -7,6 +7,12 @@ import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
 import { useReferencePhoto } from '../features/reference-photo';
 import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback, Image } from 'react-native';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as MediaLibrary from 'expo-media-library';
+import { analyzeImage } from '../services/bedrock';
+import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
+import { StyleSuggestionModal } from './StyleSuggestionModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -27,11 +33,16 @@ export default function AppCamera() {
   // Reference photo functionality
   const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showStyleModal, setShowStyleModal] = useState(false);
+  
+  // Photo thumbnail preview
+  const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
+  const [showThumbnail, setShowThumbnail] = useState(false);
 
   useEffect(() => {
     if (permission?.granted) {
       requestMediaPermission();
-
+      
       // Check for reference image from other screens
       if (global.referenceImageUri) {
         setReference(global.referenceImageUri);
@@ -138,6 +149,13 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
+          // Show thumbnail preview
+          setLastPhotoUri(photo.uri);
+          setShowThumbnail(true);
+          
+          // Hide thumbnail after 3 seconds
+          setTimeout(() => setShowThumbnail(false), 3000);
+          
           const asset = await MediaLibrary.createAssetAsync(photo.uri);
           const album = await MediaLibrary.getAlbumAsync('PictureThis');
 
@@ -154,6 +172,8 @@ export default function AppCamera() {
       }
     }
   };
+
+
 
   return (
     <View style={styles.container}>
@@ -188,6 +208,18 @@ export default function AppCamera() {
           {/* AI Feedback Overlay - Persistent */}
           {feedback.length > 0 && (
             <View style={styles.feedbackContainer}>
+        <View style={styles.overlay}>
+          {/* Top Bar: Score & Style */}
+          <View style={styles.topBar}>
+            <View style={styles.topRow}>
+              <TouchableOpacity 
+                style={styles.styleSuggestionButton} 
+                onPress={() => setShowStyleModal(true)}
+              >
+                <Text style={styles.styleSuggestionText}>
+                  {style || (referencePhoto ? 'Photo Referenced' : 'Style Suggestion')}
+                </Text>
+              </TouchableOpacity>
               <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>Score</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
@@ -237,6 +269,9 @@ export default function AppCamera() {
         </SafeAreaView>
       </CameraView>
 
+        </View>
+      </View>
+      
       {/* Reference Analysis Modal */}
       <Modal
         visible={showAnalysisModal}
@@ -257,6 +292,18 @@ export default function AppCamera() {
         </View>
       </Modal>
     </View>
+        analysis={referencePhoto?.analysis || null}
+        isAnalyzing={isAnalyzing}
+        onClose={() => setShowAnalysisModal(false)}
+      />
+
+      {/* Style Suggestion Modal */}
+      <StyleSuggestionModal
+        visible={showStyleModal}
+        onClose={() => setShowStyleModal(false)}
+        onStyleSelected={setStyle}
+      />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -320,6 +367,22 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 10,
+  },
+  styleSuggestionButton: {
+    height: 40,
+    width: width * 0.5,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  styleSuggestionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   scoreContainer: {
     alignItems: 'center',
