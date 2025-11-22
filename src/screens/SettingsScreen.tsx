@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function AccountScreen() {
+export default function SettingsScreen() {
   // Basic Settings State
   const [feedbackFrequency, setFeedbackFrequency] = useState('2s');
   const [coachingStyle, setCoachingStyle] = useState('Intermediate');

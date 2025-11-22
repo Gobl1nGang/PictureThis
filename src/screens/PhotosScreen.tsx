@@ -8,9 +8,9 @@ const { width } = Dimensions.get('window');
 const numColumns = 3;
 const imageSize = (width - 6) / numColumns;
 
-export default function AlbumsScreen() {
+export default function PhotosScreen() {
   const [photos, setPhotos] = useState<any[]>([]);
-  const [permission, requestPermission] = MediaLibrary.usePermissions();
+  const [permission, requestPermission] = MediaLibrary.usePermissions({ writeOnly: false });
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(true);
@@ -81,7 +81,7 @@ export default function AlbumsScreen() {
       });
 
       if (loadMore) {
-        setPhotos(prev => [...prev, ...result.assets]);  // <-- append
+        setPhotos(prev => [...prev, ...result.assets]);
       } else {
         setPhotos(result.assets);
       }
@@ -95,7 +95,6 @@ export default function AlbumsScreen() {
     setLoading(false);
     setLoadingMore(false);
   };
-
 
   const loadMorePhotos = () => {
     if (!loadingMore && hasNextPage) {
@@ -118,13 +117,27 @@ export default function AlbumsScreen() {
     
     try {
       const photoIds = Array.from(selectedPhotos);
-      await MediaLibrary.deleteAssetsAsync(photoIds);
+      const result = await MediaLibrary.deleteAssetsAsync(photoIds);
       
-      // Remove deleted photos from state
-      setPhotos(prev => prev.filter(photo => !selectedPhotos.has(photo.id)));
-      setSelectedPhotos(new Set());
-      setSelectionMode(false);
+      // Only update state if deletion was successful
+      if (result) {
+        // Remove deleted photos from state
+        setPhotos(prev => prev.filter(photo => !selectedPhotos.has(photo.id)));
+        setSelectedPhotos(new Set());
+        setSelectionMode(false);
+      }
     } catch (error) {
+      // Check if error is due to user cancellation
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // iOS error code 3072 = user cancelled deletion
+      if (errorMessage.includes('3072') || 
+          errorMessage.includes('cancelled') || 
+          errorMessage.includes('canceled')) {
+        // User cancelled - this is normal, don't show error
+        return;
+      }
+      
       console.error('Error deleting photos:', error);
     }
   };
@@ -143,14 +156,12 @@ export default function AlbumsScreen() {
       });
 
       if (!result.canceled && result.assets) {
-        // Save selected photos to device library (they're already there, but this refreshes our view)
         for (const asset of result.assets) {
           if (asset.uri) {
             await MediaLibrary.saveToLibraryAsync(asset.uri);
           }
         }
         
-        // Refresh the photo list
         setPhotos([]);
         setEndCursor(undefined);
         setHasNextPage(true);
@@ -261,7 +272,7 @@ export default function AlbumsScreen() {
         ) : (
           <View style={styles.normalHeader}>
             <View>
-              <Text style={styles.headerText}>Albums</Text>
+              <Text style={styles.headerText}>Photos</Text>
               <Text style={styles.countText}>{photos.length} photos</Text>
             </View>
             <View style={styles.headerButtons}>

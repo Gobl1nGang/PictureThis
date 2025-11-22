@@ -7,15 +7,15 @@ const { width } = Dimensions.get('window');
 const tabWidth = width / 4;
 
 import CameraScreen from './src/screens/CameraScreen';
-import AlbumsScreen from './src/screens/AlbumsScreen';
+import PhotosScreen from './src/screens/PhotosScreen';
 import InspoScreen from './src/screens/InspoScreen';
-import AccountScreen from './src/screens/AccountScreen';
+import SettingsScreen from './src/screens/SettingsScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Camera');
   const slideAnim = useRef(new Animated.Value(0)).current;
   
-  const tabs = ['Camera', 'Albums', 'Inspo', 'Account'];
+  const tabs = ['Camera', 'Photos', 'Inspo', 'Settings'];
   
   useEffect(() => {
     const tabIndex = tabs.indexOf(activeTab);
@@ -30,9 +30,9 @@ export default function App() {
   const getTabIcon = (tabName: string) => {
     switch (tabName) {
       case 'Camera': return 'camera';
-      case 'Albums': return 'images';
+      case 'Photos': return 'images';
       case 'Inspo': return 'bulb';
-      case 'Account': return 'person';
+      case 'Settings': return 'settings';
       default: return 'circle';
     }
   };
@@ -41,12 +41,12 @@ export default function App() {
     switch (activeTab) {
       case 'Camera':
         return <CameraScreen />;
-      case 'Albums':
-        return <AlbumsScreen />;
+      case 'Photos':
+        return <PhotosScreen />;
       case 'Inspo':
         return <InspoScreen />;
-      case 'Account':
-        return <AccountScreen />;
+      case 'Settings':
+        return <SettingsScreen />;
       default:
         return <CameraScreen />;
     }
