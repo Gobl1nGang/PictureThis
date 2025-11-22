@@ -1,7 +1,7 @@
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback, Image } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
@@ -30,6 +30,10 @@ export default function AppCamera() {
   const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showStyleModal, setShowStyleModal] = useState(false);
+  
+  // Photo thumbnail preview
+  const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
+  const [showThumbnail, setShowThumbnail] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -150,6 +154,13 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
+          // Show thumbnail preview
+          setLastPhotoUri(photo.uri);
+          setShowThumbnail(true);
+          
+          // Hide thumbnail after 3 seconds
+          setTimeout(() => setShowThumbnail(false), 3000);
+          
           const asset = await MediaLibrary.createAssetAsync(photo.uri);
           const album = await MediaLibrary.getAlbumAsync('PictureThis');
 
@@ -166,6 +177,8 @@ export default function AppCamera() {
       }
     }
   };
+
+
 
   return (
     <KeyboardAvoidingView
@@ -198,7 +211,7 @@ export default function AppCamera() {
                 onPress={() => setShowStyleModal(true)}
               >
                 <Text style={styles.styleSuggestionText}>
-                  {style || 'Style Suggestion'}
+                  {style || (referencePhoto ? 'Photo Referenced' : 'Style Suggestion')}
                 </Text>
               </TouchableOpacity>
               <View style={styles.scoreContainer}>
@@ -243,6 +256,13 @@ export default function AppCamera() {
         analysis={referencePhoto?.analysis || null}
         isAnalyzing={isAnalyzing}
         onClose={() => setShowAnalysisModal(false)}
+      />
+
+      {/* Style Suggestion Modal */}
+      <StyleSuggestionModal
+        visible={showStyleModal}
+        onClose={() => setShowStyleModal(false)}
+        onStyleSelected={setStyle}
       />
     </KeyboardAvoidingView>
   );
