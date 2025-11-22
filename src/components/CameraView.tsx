@@ -1,12 +1,18 @@
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback, Image } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
+import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
+import { StyleSuggestionModal } from './StyleSuggestionModal';
 
 const { width, height } = Dimensions.get('window');
+
+declare global {
+  var referenceImageUri: string | null;
+}
 
 export default function AppCamera() {
   const [facing, setFacing] = useState<'front' | 'back'>('back');
@@ -19,6 +25,15 @@ export default function AppCamera() {
   const [zoom, setZoom] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
+
+  // Reference photo functionality
+  const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showStyleModal, setShowStyleModal] = useState(false);
+  
+  // Photo thumbnail preview
+  const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
+  const [showThumbnail, setShowThumbnail] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -37,8 +52,15 @@ export default function AppCamera() {
     if (permission?.granted) {
       setIsLooping(true);
       requestMediaPermission();
+      
+      // Check for reference image from other screens
+      if (global.referenceImageUri) {
+        setReference(global.referenceImageUri);
+        setShowAnalysisModal(true);
+        global.referenceImageUri = null; // Clear after use
+      }
     }
-  }, [permission]);
+  }, [permission, setReference]);
 
   if (!permission) return <View />;
   if (!permission.granted) {
@@ -132,14 +154,31 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
-          await MediaLibrary.saveToLibraryAsync(photo.uri);
-          Alert.alert("Saved!", "Photo saved to your gallery.");
+          // Show thumbnail preview
+          setLastPhotoUri(photo.uri);
+          setShowThumbnail(true);
+          
+          // Hide thumbnail after 3 seconds
+          setTimeout(() => setShowThumbnail(false), 3000);
+          
+          const asset = await MediaLibrary.createAssetAsync(photo.uri);
+          const album = await MediaLibrary.getAlbumAsync('PictureThis');
+
+          if (album == null) {
+            await MediaLibrary.createAlbumAsync('PictureThis', asset, false);
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+
+          Alert.alert("Saved!", "Photo saved to PictureThis album.");
         }
       } catch (error) {
         Alert.alert("Error", "Failed to save photo.");
       }
     }
   };
+
+
 
   return (
     <KeyboardAvoidingView
@@ -167,13 +206,14 @@ export default function AppCamera() {
           {/* Top Bar: Score & Style */}
           <View style={styles.topBar}>
             <View style={styles.topRow}>
-              <TextInput
-                style={styles.styleInput}
-                placeholder="Style..."
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={style}
-                onChangeText={setStyle}
-              />
+              <TouchableOpacity 
+                style={styles.styleSuggestionButton} 
+                onPress={() => setShowStyleModal(true)}
+              >
+                <Text style={styles.styleSuggestionText}>
+                  {style || (referencePhoto ? 'Photo Referenced' : 'Style Suggestion')}
+                </Text>
+              </TouchableOpacity>
               <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>PRO SCORE</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
@@ -209,6 +249,21 @@ export default function AppCamera() {
           </View>
         </View>
       </View>
+      
+      {/* Reference Analysis Modal */}
+      <ReferenceAnalysisModal
+        visible={showAnalysisModal}
+        analysis={referencePhoto?.analysis || null}
+        isAnalyzing={isAnalyzing}
+        onClose={() => setShowAnalysisModal(false)}
+      />
+
+      {/* Style Suggestion Modal */}
+      <StyleSuggestionModal
+        visible={showStyleModal}
+        onClose={() => setShowStyleModal(false)}
+        onStyleSelected={setStyle}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -283,16 +338,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  styleInput: {
+  styleSuggestionButton: {
     height: 40,
     width: width * 0.5,
     backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
     paddingHorizontal: 15,
-    color: 'white',
-    fontSize: 14,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
+  },
+  styleSuggestionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   scoreContainer: {
     alignItems: 'flex-end',

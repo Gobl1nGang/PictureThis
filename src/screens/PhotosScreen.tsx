@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform, Modal, SafeAreaView, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
@@ -18,10 +20,14 @@ export default function PhotosScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [uriCache, setUriCache] = useState<Map<string, string>>(new Map());
-  
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
+
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
-  
+
   useEffect(() => {
     if (isExpoGo && Platform.OS === 'ios') {
       console.warn('Running on Expo Go for iOS - photo loading may be limited due to entitlements');
@@ -33,25 +39,25 @@ export default function PhotosScreen() {
       loadPhotos();
     }
   }, [permission?.granted]);
-  
+
   // Function to resolve ph:// URIs to usable file URIs
   const resolveAssetUri = async (asset: MediaLibrary.Asset): Promise<string> => {
     // Check cache first
     if (uriCache.has(asset.id)) {
       return uriCache.get(asset.id)!;
     }
-    
+
     // If URI doesn't start with ph://, return as-is
     if (!asset.uri.startsWith('ph://')) {
       setUriCache(prev => new Map(prev.set(asset.id, asset.uri)));
       return asset.uri;
     }
-    
+
     try {
       // Get asset info to convert ph:// to file:// URI
       const assetInfo = await MediaLibrary.getAssetInfoAsync(asset);
       const resolvedUri = assetInfo.localUri || assetInfo.uri || asset.uri;
-      
+
       // Cache the resolved URI
       setUriCache(prev => new Map(prev.set(asset.id, resolvedUri)));
       return resolvedUri;
@@ -73,8 +79,18 @@ export default function PhotosScreen() {
     else setLoading(true);
 
     try {
+      const album = await MediaLibrary.getAlbumAsync('PictureThis');
+
+      if (!album) {
+        setPhotos([]);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
       const result = await MediaLibrary.getAssetsAsync({
         mediaType: 'photo',
+        album: album,
         first: 50,
         sortBy: MediaLibrary.SortBy.creationTime,
         after: loadMore ? endCursor : undefined,
@@ -114,11 +130,11 @@ export default function PhotosScreen() {
 
   const deleteSelectedPhotos = async () => {
     if (selectedPhotos.size === 0) return;
-    
+
     try {
       const photoIds = Array.from(selectedPhotos);
       const result = await MediaLibrary.deleteAssetsAsync(photoIds);
-      
+
       // Only update state if deletion was successful
       if (result) {
         // Remove deleted photos from state
@@ -129,15 +145,15 @@ export default function PhotosScreen() {
     } catch (error) {
       // Check if error is due to user cancellation
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // iOS error code 3072 = user cancelled deletion
-      if (errorMessage.includes('3072') || 
-          errorMessage.includes('cancelled') || 
-          errorMessage.includes('canceled')) {
+      if (errorMessage.includes('3072') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('canceled')) {
         // User cancelled - this is normal, don't show error
         return;
       }
-      
+
       console.error('Error deleting photos:', error);
     }
   };
@@ -145,6 +161,27 @@ export default function PhotosScreen() {
   const cancelSelection = () => {
     setSelectedPhotos(new Set());
     setSelectionMode(false);
+  };
+
+  const openPhoto = (photo: MediaLibrary.Asset) => {
+    setSelectedPhoto(photo);
+    setModalVisible(true);
+  };
+
+  const closePhotoModal = () => {
+    setModalVisible(false);
+    setSelectedPhoto(null);
+  };
+
+  const handleSetReference = async (photo: MediaLibrary.Asset) => {
+    try {
+      const resolvedUri = await resolveAssetUri(photo);
+      setAnalysisImageUri(resolvedUri);
+      setAnalysisModalVisible(true);
+      closePhotoModal();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to analyze photo');
+    }
   };
 
   const addPhotosFromLibrary = async () => {
@@ -156,12 +193,20 @@ export default function PhotosScreen() {
       });
 
       if (!result.canceled && result.assets) {
+        const album = await MediaLibrary.getAlbumAsync('PictureThis');
+        let albumToUse = album;
+
         for (const asset of result.assets) {
           if (asset.uri) {
-            await MediaLibrary.saveToLibraryAsync(asset.uri);
+            const createdAsset = await MediaLibrary.createAssetAsync(asset.uri);
+            if (albumToUse == null) {
+              albumToUse = await MediaLibrary.createAlbumAsync('PictureThis', createdAsset, false);
+            } else {
+              await MediaLibrary.addAssetsToAlbumAsync([createdAsset], albumToUse, false);
+            }
           }
         }
-        
+
         setPhotos([]);
         setEndCursor(undefined);
         setHasNextPage(true);
@@ -204,17 +249,19 @@ export default function PhotosScreen() {
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
     const [imageError, setImageError] = useState(false);
     const isSelected = selectedPhotos.has(item.id);
-    
+
     useEffect(() => {
       resolveAssetUri(item).then(setResolvedUri);
     }, [item.id]);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.photoContainer}
         onPress={() => {
           if (selectionMode) {
             togglePhotoSelection(item.id);
+          } else {
+            openPhoto(item);
           }
         }}
         onLongPress={() => {
@@ -225,8 +272,8 @@ export default function PhotosScreen() {
         }}
       >
         {resolvedUri && !imageError ? (
-          <Image 
-            source={{ uri: resolvedUri }} 
+          <Image
+            source={{ uri: resolvedUri }}
             style={[styles.photo, isSelected && styles.selectedPhoto]}
             resizeMode="cover"
             onError={() => setImageError(true)}
@@ -244,13 +291,34 @@ export default function PhotosScreen() {
       </TouchableOpacity>
     );
   };
-  
+
   const renderPhoto = ({ item }: { item: MediaLibrary.Asset }) => {
     return <PhotoItem item={item} />;
   };
 
+  // Component for modal photo content
+  const PhotoModalContent = ({ photo }: { photo: MediaLibrary.Asset }) => {
+    const [resolvedUri, setResolvedUri] = useState<string | null>(null);
+
+    useEffect(() => {
+      resolveAssetUri(photo).then(setResolvedUri);
+    }, [photo.id]);
+
+    return resolvedUri ? (
+      <Image
+        source={{ uri: resolvedUri }}
+        style={styles.modalImage}
+        resizeMode="contain"
+      />
+    ) : (
+      <View style={styles.modalPlaceholder}>
+        <Text style={styles.modalPlaceholderText}>Loading...</Text>
+      </View>
+    );
+  };
+
   return (
-    <View style={styles.screenContainer}>
+    <SafeAreaView style={styles.screenContainer}>
       <View style={styles.header}>
         {selectionMode ? (
           <View style={styles.selectionHeader}>
@@ -260,7 +328,7 @@ export default function PhotosScreen() {
             <Text style={styles.selectedCountText}>
               {selectedPhotos.size} selected
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={deleteSelectedPhotos}
               disabled={selectedPhotos.size === 0}
             >
@@ -276,13 +344,13 @@ export default function PhotosScreen() {
               <Text style={styles.countText}>{photos.length} photos</Text>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={addPhotosFromLibrary}
               >
                 <Text style={styles.addButtonText}>+ Add</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.selectButton}
                 onPress={() => setSelectionMode(true)}
               >
@@ -292,7 +360,7 @@ export default function PhotosScreen() {
           </View>
         )}
       </View>
-      
+
       <FlatList
         data={photos}
         renderItem={renderPhoto}
@@ -310,7 +378,41 @@ export default function PhotosScreen() {
           ) : null
         }
       />
-    </View>
+
+      {/* Fullscreen photo modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closePhotoModal}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.modalBackground}
+            onPress={closePhotoModal}
+            activeOpacity={1}
+          >
+            {selectedPhoto && (
+              <>
+                <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
+                  <Ionicons name="close" size={30} color="white" />
+                </TouchableOpacity>
+
+                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+
+                <PhotoModalContent photo={selectedPhoto} />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      <AnalysisModal
+        visible={analysisModalVisible}
+        onClose={() => setAnalysisModalVisible(false)}
+        imageUri={analysisImageUri}
+      />
+    </SafeAreaView>
   );
 }
 
@@ -326,7 +428,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: 'white',
@@ -464,5 +566,42 @@ const styles = StyleSheet.create({
   placeholderText: {
     fontSize: 24,
     color: '#ccc',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  modalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  modalImage: {
+    width: width - 40,
+    height: '80%',
+  },
+  modalPlaceholder: {
+    width: width - 40,
+    height: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  modalPlaceholderText: {
+    color: 'white',
+    fontSize: 18,
   },
 });
