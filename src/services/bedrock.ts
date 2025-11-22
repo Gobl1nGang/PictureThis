@@ -11,6 +11,50 @@ const client = new BedrockRuntimeClient({
     },
 });
 
+export const askQuestion = async (question: string, base64Image: string): Promise<string> => {
+    const prompt = `You are a photography coach. The user asked: "${question}"
+
+Look at their photo and answer their specific question directly. Give 1 concise sentence with specific actionable advice. Be direct and clear.
+
+Timestamp: ${Date.now()}`;
+
+    const modelId = "us.meta.llama3-2-11b-instruct-v1:0";
+
+    try {
+        const command = new ConverseCommand({
+            modelId,
+            messages: [
+                {
+                    role: "user",
+                    content: [
+                        {
+                            text: prompt,
+                        },
+                        {
+                            image: {
+                                format: "jpeg",
+                                source: {
+                                    bytes: Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)),
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+            inferenceConfig: {
+                maxTokens: 50,
+                temperature: 0.2,
+            },
+        });
+
+        const response = await client.send(command);
+        return response.output?.message?.content?.[0]?.text || "No response available.";
+    } catch (error) {
+        console.error("Bedrock Error:", error);
+        return "Error: Unable to process question.";
+    }
+};
+
 export const analyzeImage = async (base64Image: string, style?: string): Promise<string> => {
     const prompt = `You are a professional photography coach. Your job is to critique the COMPOSITION, LIGHTING, and FRAMING of this image.
 

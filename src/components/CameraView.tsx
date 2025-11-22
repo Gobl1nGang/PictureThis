@@ -5,6 +5,7 @@ import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingVi
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
+import VoiceCommand from './VoiceCommand';
 
 const { width, height } = Dimensions.get('window');
 
@@ -17,6 +18,7 @@ export default function AppCamera() {
   const [style, setStyle] = useState<string>("");
   const [isLooping, setIsLooping] = useState(false);
   const [zoom, setZoom] = useState(0);
+  const [currentImage, setCurrentImage] = useState<string>('');
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
 
@@ -73,6 +75,7 @@ export default function AppCamera() {
           );
 
           if (manipResult.base64) {
+            setCurrentImage(manipResult.base64);
             const rawAdvice = await analyzeImage(manipResult.base64, style);
 
             try {
@@ -207,6 +210,8 @@ export default function AppCamera() {
               <Text style={styles.iconText}>{zoom === 0 ? "1x" : "2x"}</Text>
             </TouchableOpacity>
           </View>
+
+          <VoiceCommand currentImage={currentImage} />
         </View>
       </View>
     </KeyboardAvoidingView>

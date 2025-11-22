@@ -11,10 +11,12 @@
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.936.0",
     "@aws-sdk/client-bedrock-runtime": "^3.936.0",
+    "@elevenlabs/elevenlabs-js": "^2.25.0",
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/bottom-tabs": "^7.8.6",
     "@react-navigation/native": "^7.1.21",
     "expo": "~54.0.25",
+    "expo-av": "^16.0.7",
     "expo-camera": "~17.0.9",
     "expo-constants": "^18.0.10",
     "expo-file-system": "~19.0.19",
