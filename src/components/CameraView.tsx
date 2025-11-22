@@ -5,8 +5,10 @@ import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingVi
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
+import { analyzePhotoForEditing } from '../services/editingAnalysis';
 import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
 import { StyleSuggestionModal } from './StyleSuggestionModal';
+import EditingScreen from '../screens/EditingScreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,6 +27,7 @@ export default function AppCamera() {
   const [zoom, setZoom] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   // Reference photo functionality
   const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
@@ -34,6 +37,10 @@ export default function AppCamera() {
   // Photo thumbnail preview
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
+  
+  // Editing screen
+  const [showEditingScreen, setShowEditingScreen] = useState(false);
+  const [editingPhotoUri, setEditingPhotoUri] = useState<string | null>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -79,7 +86,7 @@ export default function AppCamera() {
   }
 
   const analyzeScene = async () => {
-    if (cameraRef.current) {
+    if (cameraRef.current && isCameraReady) {
       lastAnalysisTime.current = Date.now();
       try {
         const photo = await cameraRef.current.takePictureAsync({
@@ -146,35 +153,53 @@ export default function AppCamera() {
   }
 
   const takeHighResPicture = async () => {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 1.0,
-          skipProcessing: false,
-        });
+    console.log('takeHighResPicture called');
+    
+    if (!cameraRef.current) {
+      console.log('No camera ref');
+      return;
+    }
+    
+    if (!isCameraReady) {
+      console.log('Camera not ready yet');
+      Alert.alert('Camera Loading', 'Please wait for camera to initialize');
+      return;
+    }
+    
+    try {
+      console.log('Taking picture...');
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 1.0,
+        skipProcessing: false,
+      });
+      
+      console.log('Photo taken:', photo?.uri);
 
-        if (photo?.uri) {
-          // Show thumbnail preview
-          setLastPhotoUri(photo.uri);
-          setShowThumbnail(true);
-          
-          // Hide thumbnail after 3 seconds
-          setTimeout(() => setShowThumbnail(false), 3000);
-          
-          const asset = await MediaLibrary.createAssetAsync(photo.uri);
-          const album = await MediaLibrary.getAlbumAsync('PictureThis');
-
-          if (album == null) {
-            await MediaLibrary.createAlbumAsync('PictureThis', asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-
-          Alert.alert("Saved!", "Photo saved to PictureThis album.");
-        }
-      } catch (error) {
-        Alert.alert("Error", "Failed to save photo.");
+      if (photo?.uri) {
+        console.log('Setting thumbnail and popup...');
+        // Show thumbnail preview
+        setLastPhotoUri(photo.uri);
+        setShowThumbnail(true);
+        
+        // Hide thumbnail after 3 seconds
+        setTimeout(() => setShowThumbnail(false), 3000);
+        
+        // Photo ready for editing via thumbnail
+        
+        // Auto-navigate to editing screen
+        setTimeout(() => {
+          console.log('Auto-navigating to editing screen with:', photo.uri);
+          setEditingPhotoUri(photo.uri);
+          setShowEditingScreen(true);
+        }, 500);
+        
+        Alert.alert("Photo taken!", "Photo captured successfully.");
+      } else {
+        console.log('No photo URI');
       }
+    } catch (error) {
+      console.log('Error taking picture:', error);
+      Alert.alert("Error", "Failed to take photo.");
     }
   };
 
@@ -192,6 +217,10 @@ export default function AppCamera() {
           ref={cameraRef}
           zoom={zoom}
           autofocus="on"
+          onCameraReady={() => {
+            console.log('Camera ready');
+            setIsCameraReady(true);
+          }}
         />
 
         {/* Rule of Thirds Grid */}
@@ -247,6 +276,13 @@ export default function AppCamera() {
               <Text style={styles.iconText}>{zoom === 0 ? "1x" : "2x"}</Text>
             </TouchableOpacity>
           </View>
+          
+          {/* Photo Thumbnail Preview */}
+          {showThumbnail && lastPhotoUri && (
+            <View style={styles.thumbnailContainer}>
+              <Image source={{ uri: lastPhotoUri }} style={styles.thumbnail} />
+            </View>
+          )}
         </View>
       </View>
       
@@ -264,6 +300,14 @@ export default function AppCamera() {
         onClose={() => setShowStyleModal(false)}
         onStyleSelected={setStyle}
       />
+      
+      {/* Editing Screen Modal */}
+      {showEditingScreen && editingPhotoUri && (
+        <EditingScreen
+          route={{ params: { photoUri: editingPhotoUri } }}
+          navigation={{ goBack: () => setShowEditingScreen(false) }}
+        />
+      )}
     </KeyboardAvoidingView>
   );
 }
@@ -438,6 +482,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderWidth: 2,
     borderColor: '#333',
+  },
+  thumbnailContainer: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
   },
 });
 
