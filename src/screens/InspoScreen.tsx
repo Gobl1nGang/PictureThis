@@ -14,13 +14,16 @@ import {
   SafeAreaView 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
+import { SetReferenceButton } from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
 const numColumns = 2;
 const imageSize = (width - 30) / numColumns;
 
 // Pexels API configuration
-const PEXELS_API_KEY = process.env.PEXELS_API_KEY || '';
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY || 'tWfZiBvUEg9yR3BRR74ZUylDykEVQs3Cr3UbDg10ssbz3G34Ne6pZ8rF';
 const PEXELS_BASE_URL = 'https://api.pexels.com/v1';
 
 // TypeScript interfaces for Pexels API response
@@ -137,6 +140,31 @@ export default function InspoScreen() {
     setSelectedPhoto(null);
   };
 
+  // Save photo to device library
+  const savePhoto = async (photo: PexelsPhoto) => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to save photos to your library.');
+        return;
+      }
+
+      // Use MediaLibrary.saveToLibraryAsync directly with the URL
+      await MediaLibrary.saveToLibraryAsync(photo.src.large);
+      Alert.alert('Success', 'Photo saved to your library!');
+    } catch (error) {
+      console.error('Error saving photo:', error);
+      Alert.alert('Error', 'Failed to save photo. Please try again.');
+    }
+  };
+
+  const handleSetReference = (photo: PexelsPhoto) => {
+    // Store reference for camera to pick up
+    global.referenceImageUri = photo.src.large;
+    closePhotoModal();
+    Alert.alert('Reference Set', 'Switch to Camera tab to start live coaching!');
+  };
+
   // Render individual photo item in grid
   const renderPhotoItem = ({ item }: { item: PexelsPhoto }) => (
     <TouchableOpacity 
@@ -251,6 +279,15 @@ export default function InspoScreen() {
                 <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.saveButton} 
+                  onPress={() => savePhoto(selectedPhoto)}
+                >
+                  <Ionicons name="download" size={24} color="white" />
+                </TouchableOpacity>
+                
+                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
                 
                 <Image 
                   source={{ uri: selectedPhoto.src.large }}
@@ -424,6 +461,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  saveButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,122,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalImage: {
     width: width - 40,
     height: height - 200,
@@ -449,4 +498,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
+
 });

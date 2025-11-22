@@ -5,6 +5,12 @@ import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingVi
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
+import { 
+  useReferencePhoto, 
+  ReferenceAnalysisModal, 
+  ReferenceModeIndicator, 
+  LiveCoachingOverlay 
+} from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
 
@@ -19,6 +25,10 @@ export default function AppCamera() {
   const [zoom, setZoom] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
+  
+  // Reference photo functionality
+  const { referencePhoto, isAnalyzing, setReference, clearReference, hasReference } = useReferencePhoto();
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -37,8 +47,15 @@ export default function AppCamera() {
     if (permission?.granted) {
       setIsLooping(true);
       requestMediaPermission();
+      
+      // Check for reference image from other screens
+      if (global.referenceImageUri) {
+        setReference(global.referenceImageUri);
+        setShowAnalysisModal(true);
+        global.referenceImageUri = null; // Clear after use
+      }
     }
-  }, [permission]);
+  }, [permission, setReference]);
 
   if (!permission) return <View />;
   if (!permission.granted) {
@@ -167,15 +184,19 @@ export default function AppCamera() {
           {/* Top Bar: Score & Style */}
           <View style={styles.topBar}>
             <View style={styles.topRow}>
-              <TextInput
-                style={styles.styleInput}
-                placeholder="Style..."
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={style}
-                onChangeText={setStyle}
-              />
+              {hasReference ? (
+                <ReferenceModeIndicator onExit={clearReference} />
+              ) : (
+                <TextInput
+                  style={styles.styleInput}
+                  placeholder="Style..."
+                  placeholderTextColor="rgba(255,255,255,0.6)"
+                  value={style}
+                  onChangeText={setStyle}
+                />
+              )}
               <View style={styles.scoreContainer}>
-                <Text style={styles.scoreLabel}>PRO SCORE</Text>
+                <Text style={styles.scoreLabel}>{hasReference ? 'MATCH SCORE' : 'PRO SCORE'}</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
                   {score}
                 </Text>
@@ -208,7 +229,28 @@ export default function AppCamera() {
             </TouchableOpacity>
           </View>
         </View>
+        
+        {/* Reference mode live coaching overlay */}
+        {hasReference && referencePhoto?.analysis && (
+          <LiveCoachingOverlay 
+            referenceAnalysis={referencePhoto.analysis}
+            currentFrame={null}
+          />
+        )}
       </View>
+      
+      {/* Reference Analysis Modal */}
+      <ReferenceAnalysisModal
+        visible={showAnalysisModal}
+        analysis={referencePhoto?.analysis || null}
+        isAnalyzing={isAnalyzing}
+        onClose={() => setShowAnalysisModal(false)}
+        onStartCoaching={() => setShowAnalysisModal(false)}
+        onContinueWithoutCoaching={() => {
+          clearReference();
+          setShowAnalysisModal(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -380,5 +422,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#333',
   },
+
 });
 

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform, Modal, SafeAreaView, Alert } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { SetReferenceButton } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
@@ -18,6 +20,8 @@ export default function PhotosScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   const [uriCache, setUriCache] = useState<Map<string, string>>(new Map());
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
   
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -147,6 +151,28 @@ export default function PhotosScreen() {
     setSelectionMode(false);
   };
 
+  const openPhoto = (photo: MediaLibrary.Asset) => {
+    setSelectedPhoto(photo);
+    setModalVisible(true);
+  };
+
+  const closePhotoModal = () => {
+    setModalVisible(false);
+    setSelectedPhoto(null);
+  };
+
+  const handleSetReference = async (photo: MediaLibrary.Asset) => {
+    try {
+      const resolvedUri = await resolveAssetUri(photo);
+      // Store reference for camera to pick up
+      global.referenceImageUri = resolvedUri;
+      closePhotoModal();
+      Alert.alert('Reference Set', 'Switch to Camera tab to start live coaching!');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to set reference photo');
+    }
+  };
+
   const addPhotosFromLibrary = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -215,6 +241,8 @@ export default function PhotosScreen() {
         onPress={() => {
           if (selectionMode) {
             togglePhotoSelection(item.id);
+          } else {
+            openPhoto(item);
           }
         }}
         onLongPress={() => {
@@ -249,8 +277,29 @@ export default function PhotosScreen() {
     return <PhotoItem item={item} />;
   };
 
+  // Component for modal photo content
+  const PhotoModalContent = ({ photo }: { photo: MediaLibrary.Asset }) => {
+    const [resolvedUri, setResolvedUri] = useState<string | null>(null);
+    
+    useEffect(() => {
+      resolveAssetUri(photo).then(setResolvedUri);
+    }, [photo.id]);
+    
+    return resolvedUri ? (
+      <Image 
+        source={{ uri: resolvedUri }}
+        style={styles.modalImage}
+        resizeMode="contain"
+      />
+    ) : (
+      <View style={styles.modalPlaceholder}>
+        <Text style={styles.modalPlaceholderText}>Loading...</Text>
+      </View>
+    );
+  };
+
   return (
-    <View style={styles.screenContainer}>
+    <SafeAreaView style={styles.screenContainer}>
       <View style={styles.header}>
         {selectionMode ? (
           <View style={styles.selectionHeader}>
@@ -310,7 +359,35 @@ export default function PhotosScreen() {
           ) : null
         }
       />
-    </View>
+      
+      {/* Fullscreen photo modal */}
+      <Modal
+        visible={modalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closePhotoModal}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.modalBackground}
+            onPress={closePhotoModal}
+            activeOpacity={1}
+          >
+            {selectedPhoto && (
+              <>
+                <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
+                  <Ionicons name="close" size={30} color="white" />
+                </TouchableOpacity>
+                
+                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                
+                <PhotoModalContent photo={selectedPhoto} />
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
@@ -326,7 +403,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   header: {
-    paddingTop: 60,
+    paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 20,
     backgroundColor: 'white',
@@ -464,5 +541,42 @@ const styles = StyleSheet.create({
   placeholderText: {
     fontSize: 24,
     color: '#ccc',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+  },
+  modalBackground: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 1,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  modalImage: {
+    width: width - 40,
+    height: '80%',
+  },
+  modalPlaceholder: {
+    width: width - 40,
+    height: '80%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  modalPlaceholderText: {
+    color: 'white',
+    fontSize: 18,
   },
 });
