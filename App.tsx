@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
+const tabWidth = width / 4;
 
 import CameraScreen from './src/screens/CameraScreen';
 import AlbumsScreen from './src/screens/AlbumsScreen';
@@ -9,6 +13,29 @@ import AccountScreen from './src/screens/AccountScreen';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('Camera');
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  
+  const tabs = ['Camera', 'Albums', 'Inspo', 'Account'];
+  
+  useEffect(() => {
+    const tabIndex = tabs.indexOf(activeTab);
+    Animated.spring(slideAnim, {
+      toValue: tabIndex * tabWidth,
+      useNativeDriver: false,
+      tension: 100,
+      friction: 8,
+    }).start();
+  }, [activeTab]);
+  
+  const getTabIcon = (tabName: string) => {
+    switch (tabName) {
+      case 'Camera': return 'camera';
+      case 'Albums': return 'images';
+      case 'Inspo': return 'bulb';
+      case 'Account': return 'person';
+      default: return 'circle';
+    }
+  };
 
   const renderScreen = () => {
     switch (activeTab) {
@@ -30,33 +57,31 @@ export default function App() {
       {renderScreen()}
       
       <View style={styles.tabBar}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Camera' && styles.activeTab]} 
-          onPress={() => setActiveTab('Camera')}
-        >
-          <Text style={[styles.tabText, activeTab === 'Camera' && styles.activeTabText]}>Camera</Text>
-        </TouchableOpacity>
+        <Animated.View 
+          style={[
+            styles.slideIndicator,
+            {
+              transform: [{ translateX: slideAnim }]
+            }
+          ]} 
+        />
         
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Albums' && styles.activeTab]} 
-          onPress={() => setActiveTab('Albums')}
-        >
-          <Text style={[styles.tabText, activeTab === 'Albums' && styles.activeTabText]}>Albums</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Inspo' && styles.activeTab]} 
-          onPress={() => setActiveTab('Inspo')}
-        >
-          <Text style={[styles.tabText, activeTab === 'Inspo' && styles.activeTabText]}>Inspo</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'Account' && styles.activeTab]} 
-          onPress={() => setActiveTab('Account')}
-        >
-          <Text style={[styles.tabText, activeTab === 'Account' && styles.activeTabText]}>Account</Text>
-        </TouchableOpacity>
+        {tabs.map((tabName) => (
+          <TouchableOpacity 
+            key={tabName}
+            style={styles.tab} 
+            onPress={() => setActiveTab(tabName)}
+          >
+            <Ionicons 
+              name={getTabIcon(tabName) as any}
+              size={22} 
+              color={activeTab === tabName ? '#fff' : '#666'} 
+            />
+            <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>
+              {tabName}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
       
       <StatusBar style="light" />
@@ -74,20 +99,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     borderTopWidth: 1,
     borderTopColor: '#333',
-    paddingBottom: 50,
+    paddingBottom: 40,
     paddingTop: 15,
+    position: 'relative',
+  },
+  slideIndicator: {
+    position: 'absolute',
+    top: 0,
+    width: tabWidth,
+    height: 3,
+    backgroundColor: '#fff',
+    borderRadius: 2,
   },
   tab: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
-  },
-  activeTab: {
-    backgroundColor: 'transparent',
+    paddingVertical: 8,
+    gap: 4,
   },
   tabText: {
     color: '#666',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
   },
   activeTabText: {
