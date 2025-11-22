@@ -3,13 +3,15 @@ import { View, TouchableOpacity, Text, Alert, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
 import { ELEVENLABS_API_KEY } from '@env';
 import { askQuestion } from '../services/bedrock';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { CameraView } from 'expo-camera';
 
 interface VoiceCommandProps {
-  currentImage: string;
+  cameraRef: React.RefObject<CameraView | null>;
   voiceId?: string;
 }
 
-export default function VoiceCommand({ currentImage, voiceId = "pNInz6obpgDQGcFmaJgB" }: VoiceCommandProps) {
+export default function VoiceCommand({ cameraRef, voiceId = "pNInz6obpgDQGcFmaJgB" }: VoiceCommandProps) {
   const [isListening, setIsListening] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
 
@@ -44,22 +46,38 @@ export default function VoiceCommand({ currentImage, voiceId = "pNInz6obpgDQGcFm
     const uri = recording.getURI();
     setRecording(null);
 
-    if (uri && currentImage) {
-      // Transcribe the recorded audio to text
-      const userQuestion = await transcribeAudio(uri);
-      
-      if (userQuestion) {
-        // Get AI advice based on user's question and photo
-        const aiAdvice = await askQuestion(userQuestion, currentImage);
-        
-        // Convert AI advice to speech using ElevenLabs
-        await textToSpeechWithElevenLabs(aiAdvice);
+    if (uri && cameraRef.current) {
+      // Capture current image for analysis
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.3,
+        skipProcessing: true,
+      });
+
+      if (photo?.uri) {
+        const manipResult = await manipulateAsync(
+          photo.uri,
+          [{ resize: { width: 480 } }],
+          { compress: 0.5, format: SaveFormat.JPEG, base64: true }
+        );
+
+        if (manipResult.base64) {
+          // Transcribe the recorded audio to text
+          const userQuestion = await transcribeAudio(uri);
+          
+          if (userQuestion) {
+            // Get AI advice based on user's question and photo
+            const aiAdvice = await askQuestion(userQuestion, manipResult.base64);
+            
+            // Convert AI advice to speech using ElevenLabs
+            await textToSpeechWithElevenLabs(aiAdvice);
+          }
+        }
       }
     }
   };
 
   const transcribeAudio = async (audioUri: string): Promise<string> => {
-    try {
+    try { // TODO: check if this is skipping transcription every time
       console.log('Skipping transcription, using default question');
       // For now, skip transcription and use a default question
       // The user can speak, but we'll use a generic photography question

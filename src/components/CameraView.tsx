@@ -18,7 +18,6 @@ export default function AppCamera() {
   const [style, setStyle] = useState<string>("");
   const [isLooping, setIsLooping] = useState(false);
   const [zoom, setZoom] = useState(0);
-  const [currentImage, setCurrentImage] = useState<string>('');
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
 
@@ -75,7 +74,6 @@ export default function AppCamera() {
           );
 
           if (manipResult.base64) {
-            setCurrentImage(manipResult.base64);
             const rawAdvice = await analyzeImage(manipResult.base64, style);
 
             try {
@@ -211,7 +209,7 @@ export default function AppCamera() {
             </TouchableOpacity>
           </View>
 
-          <VoiceCommand currentImage={currentImage} />
+          <VoiceCommand cameraRef={cameraRef} />
         </View>
       </View>
     </KeyboardAvoidingView>
