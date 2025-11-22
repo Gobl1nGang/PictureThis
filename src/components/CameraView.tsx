@@ -6,6 +6,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
 import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
+import { StyleSuggestionModal } from './StyleSuggestionModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +25,7 @@ export default function AppCamera() {
   // Reference photo functionality
   const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showStyleModal, setShowStyleModal] = useState(false);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -43,12 +45,7 @@ export default function AppCamera() {
       setIsLooping(true);
       requestMediaPermission();
       
-      // Check for reference image from other screens
-      if (global.referenceImageUri) {
-        setReference(global.referenceImageUri);
-        setShowAnalysisModal(true);
-        global.referenceImageUri = null; // Clear after use
-      }
+      // Reference image is handled by style selection modal
     }
   }, [permission, setReference]);
 
@@ -179,13 +176,14 @@ export default function AppCamera() {
           {/* Top Bar: Score & Style */}
           <View style={styles.topBar}>
             <View style={styles.topRow}>
-              <TextInput
-                style={styles.styleInput}
-                placeholder="Style..."
-                placeholderTextColor="rgba(255,255,255,0.6)"
-                value={style}
-                onChangeText={setStyle}
-              />
+              <TouchableOpacity 
+                style={styles.styleSuggestionButton} 
+                onPress={() => setShowStyleModal(true)}
+              >
+                <Text style={styles.styleSuggestionText}>
+                  {style || 'Style Suggestion'}
+                </Text>
+              </TouchableOpacity>
               <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>PRO SCORE</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
@@ -222,12 +220,15 @@ export default function AppCamera() {
         </View>
       </View>
       
-      {/* Reference Analysis Modal */}
-      <ReferenceAnalysisModal
-        visible={showAnalysisModal}
-        analysis={referencePhoto?.analysis || null}
-        isAnalyzing={isAnalyzing}
-        onClose={() => setShowAnalysisModal(false)}
+
+      
+      <StyleSuggestionModal
+        visible={showStyleModal}
+        onClose={() => setShowStyleModal(false)}
+        onStyleSelected={(selectedStyle) => {
+          console.log('Style selected:', selectedStyle);
+          setStyle(selectedStyle);
+        }}
       />
     </KeyboardAvoidingView>
   );
@@ -303,16 +304,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  styleInput: {
+  styleSuggestionButton: {
     height: 40,
     width: width * 0.5,
     backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
     paddingHorizontal: 15,
-    color: 'white',
-    fontSize: 14,
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
+  },
+  styleSuggestionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   scoreContainer: {
     alignItems: 'flex-end',
