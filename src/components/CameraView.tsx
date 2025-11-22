@@ -5,6 +5,8 @@ import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingVi
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
+import { Ionicons } from '@expo/vector-icons';
+import PhotoSpotsDropdown from './PhotoSpotsDropdown';
 
 const { width, height } = Dimensions.get('window');
 
@@ -17,6 +19,7 @@ export default function AppCamera() {
   const [style, setStyle] = useState<string>("");
   const [isLooping, setIsLooping] = useState(false);
   const [zoom, setZoom] = useState(0);
+  const [showPhotoSpots, setShowPhotoSpots] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
 
@@ -174,11 +177,16 @@ export default function AppCamera() {
                 value={style}
                 onChangeText={setStyle}
               />
-              <View style={styles.scoreContainer}>
-                <Text style={styles.scoreLabel}>PRO SCORE</Text>
-                <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
-                  {score}
-                </Text>
+              <View style={styles.rightControls}>
+                <TouchableOpacity style={styles.photoSpotsButton} onPress={() => setShowPhotoSpots(true)}>
+                  <Ionicons name="location" size={16} color="white" />
+                </TouchableOpacity>
+                <View style={styles.scoreContainer}>
+                  <Text style={styles.scoreLabel}>PRO SCORE</Text>
+                  <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
+                    {score}
+                  </Text>
+                </View>
               </View>
             </View>
 
@@ -190,25 +198,35 @@ export default function AppCamera() {
                 </View>
               ))}
             </View>
+            
+
           </View>
+
+
 
           {/* Bottom Controls */}
           <View style={styles.bottomBar}>
-            <TouchableOpacity style={styles.iconButton} onPress={toggleCameraFacing}>
-              <Text style={styles.iconText}>Flip</Text>
+            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+              <Ionicons name="camera-reverse" size={24} color="#007AFF" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.shutterButton} onPress={takeHighResPicture}>
               <View style={styles.shutterInner} />
             </TouchableOpacity>
 
-            {/* Zoom Control (Simple Toggle for now) */}
             <TouchableOpacity style={styles.iconButton} onPress={() => setZoom(z => z === 0 ? 0.01 : 0)}>
               <Text style={styles.iconText}>{zoom === 0 ? "1x" : "2x"}</Text>
             </TouchableOpacity>
           </View>
+
+
         </View>
       </View>
+      
+      <PhotoSpotsDropdown 
+        visible={showPhotoSpots}
+        onClose={() => setShowPhotoSpots(false)}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -353,9 +371,11 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.8)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   iconText: {
     color: 'white',
@@ -379,6 +399,29 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderWidth: 2,
     borderColor: '#333',
+  },
+  rightControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  photoSpotsButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flipButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#007AFF',
   },
 });
 

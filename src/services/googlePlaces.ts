@@ -19,21 +19,59 @@ export async function getUserLocation() {
 export async function getNearbyPhotoSpots() {
   const user = await getUserLocation();
 
-  const radius = 2000; // meters
-  const types = "tourist_attraction|park|point_of_interest";
+  // Use the new Places API (Text Search)
+  const url = 'https://places.googleapis.com/v1/places:searchText';
+  
+  const requestBody = {
+    textQuery: 'tourist attractions near me',
+    locationBias: {
+      circle: {
+        center: {
+          latitude: user.lat,
+          longitude: user.lng
+        },
+        radius: 10000
+      }
+    },
+    maxResultCount: 10
+  };
 
-  const url =
-    `https://maps.googleapis.com/maps/api/place/nearbysearch/json` +
-    `?location=${user.lat},${user.lng}` +
-    `&radius=${radius}` +
-    `&types=${types}` +
-    `&key=${API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': API_KEY,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating,places.photos'
+    },
+    body: JSON.stringify(requestBody)
+  });
 
-  const res = await fetch(url);
   const data = await res.json();
+
+  if (data.places && data.places.length > 0) {
+    // Convert new API format to old format for compatibility
+    const convertedSpots = data.places.map((place: any, index: number) => ({
+      place_id: place.id || `new_api_${index}`,
+      name: place.displayName?.text || 'Unknown Place',
+      vicinity: place.formattedAddress || 'Unknown Address',
+      geometry: {
+        location: {
+          lat: place.location?.latitude || 0,
+          lng: place.location?.longitude || 0
+        }
+      },
+      rating: place.rating,
+      photos: place.photos ? [{ photo_reference: place.photos[0]?.name }] : undefined
+    }));
+
+    return {
+      user,
+      spots: convertedSpots,
+    };
+  }
 
   return {
     user,
-    spots: data.results,
+    spots: [],
   };
 }
