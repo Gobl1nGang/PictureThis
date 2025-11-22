@@ -24,10 +24,10 @@ export default function PhotosScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
-  
+
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
-  
+
   useEffect(() => {
     if (isExpoGo && Platform.OS === 'ios') {
       console.warn('Running on Expo Go for iOS - photo loading may be limited due to entitlements');
@@ -39,25 +39,25 @@ export default function PhotosScreen() {
       loadPhotos();
     }
   }, [permission?.granted]);
-  
+
   // Function to resolve ph:// URIs to usable file URIs
   const resolveAssetUri = async (asset: MediaLibrary.Asset): Promise<string> => {
     // Check cache first
     if (uriCache.has(asset.id)) {
       return uriCache.get(asset.id)!;
     }
-    
+
     // If URI doesn't start with ph://, return as-is
     if (!asset.uri.startsWith('ph://')) {
       setUriCache(prev => new Map(prev.set(asset.id, asset.uri)));
       return asset.uri;
     }
-    
+
     try {
       // Get asset info to convert ph:// to file:// URI
       const assetInfo = await MediaLibrary.getAssetInfoAsync(asset);
       const resolvedUri = assetInfo.localUri || assetInfo.uri || asset.uri;
-      
+
       // Cache the resolved URI
       setUriCache(prev => new Map(prev.set(asset.id, resolvedUri)));
       return resolvedUri;
@@ -79,8 +79,18 @@ export default function PhotosScreen() {
     else setLoading(true);
 
     try {
+      const album = await MediaLibrary.getAlbumAsync('PictureThis');
+
+      if (!album) {
+        setPhotos([]);
+        setLoading(false);
+        setLoadingMore(false);
+        return;
+      }
+
       const result = await MediaLibrary.getAssetsAsync({
         mediaType: 'photo',
+        album: album,
         first: 50,
         sortBy: MediaLibrary.SortBy.creationTime,
         after: loadMore ? endCursor : undefined,
@@ -120,11 +130,11 @@ export default function PhotosScreen() {
 
   const deleteSelectedPhotos = async () => {
     if (selectedPhotos.size === 0) return;
-    
+
     try {
       const photoIds = Array.from(selectedPhotos);
       const result = await MediaLibrary.deleteAssetsAsync(photoIds);
-      
+
       // Only update state if deletion was successful
       if (result) {
         // Remove deleted photos from state
@@ -135,15 +145,15 @@ export default function PhotosScreen() {
     } catch (error) {
       // Check if error is due to user cancellation
       const errorMessage = error instanceof Error ? error.message : String(error);
-      
+
       // iOS error code 3072 = user cancelled deletion
-      if (errorMessage.includes('3072') || 
-          errorMessage.includes('cancelled') || 
-          errorMessage.includes('canceled')) {
+      if (errorMessage.includes('3072') ||
+        errorMessage.includes('cancelled') ||
+        errorMessage.includes('canceled')) {
         // User cancelled - this is normal, don't show error
         return;
       }
-      
+
       console.error('Error deleting photos:', error);
     }
   };
@@ -183,12 +193,20 @@ export default function PhotosScreen() {
       });
 
       if (!result.canceled && result.assets) {
+        const album = await MediaLibrary.getAlbumAsync('PictureThis');
+        let albumToUse = album;
+
         for (const asset of result.assets) {
           if (asset.uri) {
-            await MediaLibrary.saveToLibraryAsync(asset.uri);
+            const createdAsset = await MediaLibrary.createAssetAsync(asset.uri);
+            if (albumToUse == null) {
+              albumToUse = await MediaLibrary.createAlbumAsync('PictureThis', createdAsset, false);
+            } else {
+              await MediaLibrary.addAssetsToAlbumAsync([createdAsset], albumToUse, false);
+            }
           }
         }
-        
+
         setPhotos([]);
         setEndCursor(undefined);
         setHasNextPage(true);
@@ -231,13 +249,13 @@ export default function PhotosScreen() {
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
     const [imageError, setImageError] = useState(false);
     const isSelected = selectedPhotos.has(item.id);
-    
+
     useEffect(() => {
       resolveAssetUri(item).then(setResolvedUri);
     }, [item.id]);
-    
+
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.photoContainer}
         onPress={() => {
           if (selectionMode) {
@@ -254,8 +272,8 @@ export default function PhotosScreen() {
         }}
       >
         {resolvedUri && !imageError ? (
-          <Image 
-            source={{ uri: resolvedUri }} 
+          <Image
+            source={{ uri: resolvedUri }}
             style={[styles.photo, isSelected && styles.selectedPhoto]}
             resizeMode="cover"
             onError={() => setImageError(true)}
@@ -273,7 +291,7 @@ export default function PhotosScreen() {
       </TouchableOpacity>
     );
   };
-  
+
   const renderPhoto = ({ item }: { item: MediaLibrary.Asset }) => {
     return <PhotoItem item={item} />;
   };
@@ -281,13 +299,13 @@ export default function PhotosScreen() {
   // Component for modal photo content
   const PhotoModalContent = ({ photo }: { photo: MediaLibrary.Asset }) => {
     const [resolvedUri, setResolvedUri] = useState<string | null>(null);
-    
+
     useEffect(() => {
       resolveAssetUri(photo).then(setResolvedUri);
     }, [photo.id]);
-    
+
     return resolvedUri ? (
-      <Image 
+      <Image
         source={{ uri: resolvedUri }}
         style={styles.modalImage}
         resizeMode="contain"
@@ -310,7 +328,7 @@ export default function PhotosScreen() {
             <Text style={styles.selectedCountText}>
               {selectedPhotos.size} selected
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={deleteSelectedPhotos}
               disabled={selectedPhotos.size === 0}
             >
@@ -326,13 +344,13 @@ export default function PhotosScreen() {
               <Text style={styles.countText}>{photos.length} photos</Text>
             </View>
             <View style={styles.headerButtons}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addButton}
                 onPress={addPhotosFromLibrary}
               >
                 <Text style={styles.addButtonText}>+ Add</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.selectButton}
                 onPress={() => setSelectionMode(true)}
               >
@@ -342,7 +360,7 @@ export default function PhotosScreen() {
           </View>
         )}
       </View>
-      
+
       <FlatList
         data={photos}
         renderItem={renderPhoto}
@@ -360,7 +378,7 @@ export default function PhotosScreen() {
           ) : null
         }
       />
-      
+
       {/* Fullscreen photo modal */}
       <Modal
         visible={modalVisible}
@@ -369,7 +387,7 @@ export default function PhotosScreen() {
         onRequestClose={closePhotoModal}
       >
         <View style={styles.modalContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalBackground}
             onPress={closePhotoModal}
             activeOpacity={1}
@@ -379,17 +397,17 @@ export default function PhotosScreen() {
                 <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
-                
+
                 <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
-                
+
                 <PhotoModalContent photo={selectedPhoto} />
               </>
             )}
           </TouchableOpacity>
         </View>
       </Modal>
-      
-      <AnalysisModal 
+
+      <AnalysisModal
         visible={analysisModalVisible}
         onClose={() => setAnalysisModalVisible(false)}
         imageUri={analysisImageUri}

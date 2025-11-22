@@ -10,6 +10,10 @@ import { StyleSuggestionModal } from './StyleSuggestionModal';
 
 const { width, height } = Dimensions.get('window');
 
+declare global {
+  var referenceImageUri: string | null;
+}
+
 export default function AppCamera() {
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [permission, requestPermission] = useCameraPermissions();
@@ -21,7 +25,7 @@ export default function AppCamera() {
   const [zoom, setZoom] = useState(0);
   const cameraRef = useRef<CameraView>(null);
   const lastAnalysisTime = useRef<number>(0);
-  
+
   // Reference photo functionality
   const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
@@ -45,7 +49,12 @@ export default function AppCamera() {
       setIsLooping(true);
       requestMediaPermission();
       
-      // Reference image is handled by style selection modal
+      // Check for reference image from other screens
+      if (global.referenceImageUri) {
+        setReference(global.referenceImageUri);
+        setShowAnalysisModal(true);
+        global.referenceImageUri = null; // Clear after use
+      }
     }
   }, [permission, setReference]);
 
@@ -141,8 +150,16 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
-          await MediaLibrary.saveToLibraryAsync(photo.uri);
-          Alert.alert("Saved!", "Photo saved to your gallery.");
+          const asset = await MediaLibrary.createAssetAsync(photo.uri);
+          const album = await MediaLibrary.getAlbumAsync('PictureThis');
+
+          if (album == null) {
+            await MediaLibrary.createAlbumAsync('PictureThis', asset, false);
+          } else {
+            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+          }
+
+          Alert.alert("Saved!", "Photo saved to PictureThis album.");
         }
       } catch (error) {
         Alert.alert("Error", "Failed to save photo.");
@@ -220,15 +237,12 @@ export default function AppCamera() {
         </View>
       </View>
       
-
-      
-      <StyleSuggestionModal
-        visible={showStyleModal}
-        onClose={() => setShowStyleModal(false)}
-        onStyleSelected={(selectedStyle) => {
-          console.log('Style selected:', selectedStyle);
-          setStyle(selectedStyle);
-        }}
+      {/* Reference Analysis Modal */}
+      <ReferenceAnalysisModal
+        visible={showAnalysisModal}
+        analysis={referencePhoto?.analysis || null}
+        isAnalyzing={isAnalyzing}
+        onClose={() => setShowAnalysisModal(false)}
       />
     </KeyboardAvoidingView>
   );
