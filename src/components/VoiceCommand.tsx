@@ -3,6 +3,7 @@ import { View, TouchableOpacity, Text, Alert, StyleSheet } from 'react-native';
 import { Audio } from 'expo-av';
 import { ELEVENLABS_API_KEY } from '@env';
 import { askQuestion } from '../services/bedrock';
+import { transcribeAudio } from '../services/transcribe';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { CameraView } from 'expo-camera';
 
@@ -14,6 +15,7 @@ interface VoiceCommandProps {
 export default function VoiceCommand({ cameraRef, voiceId = "pNInz6obpgDQGcFmaJgB" }: VoiceCommandProps) {
   const [isListening, setIsListening] = useState(false);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [transcribedText, setTranscribedText] = useState<string>('');
 
   const startVoiceCommand = async () => {
     try {
@@ -47,6 +49,16 @@ export default function VoiceCommand({ cameraRef, voiceId = "pNInz6obpgDQGcFmaJg
     setRecording(null);
 
     if (uri && cameraRef.current) {
+      console.log('🎤 Starting transcription...');
+      
+      // Transcribe the recorded audio to text
+      const userQuestion = await transcribeAudio(uri);
+      setTranscribedText(userQuestion);
+      
+      console.log('=================================');
+      console.log('🗣️  YOU SAID:', userQuestion);
+      console.log('=================================');
+      
       // Capture current image for analysis
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.3,
@@ -61,30 +73,13 @@ export default function VoiceCommand({ cameraRef, voiceId = "pNInz6obpgDQGcFmaJg
         );
 
         if (manipResult.base64) {
-          // Transcribe the recorded audio to text
-          const userQuestion = await transcribeAudio(uri);
+          // Get AI advice based on user's question and photo
+          const aiAdvice = await askQuestion(userQuestion, manipResult.base64);
           
-          if (userQuestion) {
-            // Get AI advice based on user's question and photo
-            const aiAdvice = await askQuestion(userQuestion, manipResult.base64);
-            
-            // Convert AI advice to speech using ElevenLabs
-            await textToSpeechWithElevenLabs(aiAdvice);
-          }
+          // Convert AI advice to speech using ElevenLabs
+          await textToSpeechWithElevenLabs(aiAdvice);
         }
       }
-    }
-  };
-
-  const transcribeAudio = async (audioUri: string): Promise<string> => {
-    try { // TODO: check if this is skipping transcription every time
-      console.log('Skipping transcription, using default question');
-      // For now, skip transcription and use a default question
-      // The user can speak, but we'll use a generic photography question
-      return "What can I improve about this photo?";
-    } catch (error) {
-      console.error('Transcription error:', error);
-      return "What can I improve about this photo?";
     }
   };
 
@@ -96,8 +91,6 @@ export default function VoiceCommand({ cameraRef, voiceId = "pNInz6obpgDQGcFmaJg
       }
       
       console.log('Generating speech for AI advice:', text);
-      console.log('ElevenLabs API Key:', ELEVENLABS_API_KEY?.substring(0, 10) + '...');
-      console.log('Voice ID:', voiceId);
       
       const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: 'POST',
