@@ -94,7 +94,7 @@ export default function PhotoSpotsDropdown({ visible, onClose }: PhotoSpotsDropd
         });
         
         setSpots(sortedSpots);
-        setDebugInfo(`✅ Found ${sortedSpots.length} photo spots (sorted by distance)`);
+        setDebugInfo('');
         setLoading(false);
         return;
       } else {
@@ -295,7 +295,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: height * 0.7,
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   header: {
     flexDirection: 'row',
@@ -319,7 +319,7 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   spotsList: {
-    minHeight: 200,
+    height: height * 0.5,
     paddingHorizontal: 0,
   },
   spotItem: {
