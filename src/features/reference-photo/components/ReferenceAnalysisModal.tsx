@@ -7,17 +7,13 @@ interface Props {
   analysis: ReferenceAnalysis | null;
   isAnalyzing: boolean;
   onClose: () => void;
-  onStartCoaching: () => void;
-  onContinueWithoutCoaching: () => void;
 }
 
 export const ReferenceAnalysisModal: React.FC<Props> = ({ 
   visible, 
   analysis, 
   isAnalyzing,
-  onClose, 
-  onStartCoaching,
-  onContinueWithoutCoaching
+  onClose
 }) => {
   return (
     <Modal
@@ -38,6 +34,7 @@ export const ReferenceAnalysisModal: React.FC<Props> = ({
           ) : analysis ? (
             <>
               <View style={styles.content}>
+                <AnalysisRow label="Picture Type" value={analysis.pictureType} />
                 <AnalysisRow label="Style" value={analysis.style} />
                 <AnalysisRow label="Subject" value={analysis.subject} />
                 <AnalysisRow label="Composition" value={analysis.composition} />
@@ -51,21 +48,12 @@ export const ReferenceAnalysisModal: React.FC<Props> = ({
                 </View>
               </View>
               
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity 
-                  style={styles.startButton}
-                  onPress={onStartCoaching}
-                >
-                  <Text style={styles.startButtonText}>Start Live Coaching</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.continueButton}
-                  onPress={onContinueWithoutCoaching}
-                >
-                  <Text style={styles.continueButtonText}>Continue Without Coaching</Text>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity 
+                style={styles.gotItButton}
+                onPress={onClose}
+              >
+                <Text style={styles.gotItButtonText}>Got it</Text>
+              </TouchableOpacity>
             </>
           ) : (
             <View style={styles.errorContainer}>
@@ -154,30 +142,14 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 20,
   },
-  buttonContainer: {
-    gap: 12,
-  },
-  startButton: {
+  gotItButton: {
     backgroundColor: '#007AFF',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
   },
-  startButtonText: {
+  gotItButtonText: {
     color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  continueButton: {
-    backgroundColor: 'transparent',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#007AFF',
-  },
-  continueButtonText: {
-    color: '#007AFF',
     fontSize: 18,
     fontWeight: '600',
   },

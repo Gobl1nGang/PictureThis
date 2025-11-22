@@ -11,6 +11,44 @@ const client = new BedrockRuntimeClient({
     },
 });
 
+export const analyzeReferenceImage = async (base64Image: string, prompt: string): Promise<string> => {
+    const modelId = "us.meta.llama3-2-11b-instruct-v1:0";
+
+    try {
+        const command = new ConverseCommand({
+            modelId,
+            messages: [
+                {
+                    role: "user",
+                    content: [
+                        {
+                            text: `Analyze this photo technically. Always respond with analysis, never refuse. ${prompt}`,
+                        },
+                        {
+                            image: {
+                                format: "jpeg",
+                                source: {
+                                    bytes: Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)),
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+            inferenceConfig: {
+                maxTokens: 150,
+                temperature: 0.3,
+            },
+        });
+
+        const response = await client.send(command);
+        return response.output?.message?.content?.[0]?.text || "Analysis unavailable.";
+    } catch (error) {
+        console.error("Bedrock Error:", error);
+        return "Error: Check AWS Model Access for Llama 3.2.";
+    }
+};
+
 export const analyzeImage = async (base64Image: string, style?: string): Promise<string> => {
     const prompt = `You are a professional photography coach. Your job is to critique the COMPOSITION, LIGHTING, and FRAMING of this image.
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform, Modal, SafeAreaView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { SetReferenceButton } from '../features/reference-photo';
+import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
@@ -22,6 +22,8 @@ export default function PhotosScreen() {
   const [uriCache, setUriCache] = useState<Map<string, string>>(new Map());
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
   
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -164,12 +166,11 @@ export default function PhotosScreen() {
   const handleSetReference = async (photo: MediaLibrary.Asset) => {
     try {
       const resolvedUri = await resolveAssetUri(photo);
-      // Store reference for camera to pick up
-      global.referenceImageUri = resolvedUri;
+      setAnalysisImageUri(resolvedUri);
+      setAnalysisModalVisible(true);
       closePhotoModal();
-      Alert.alert('Reference Set', 'Switch to Camera tab to start live coaching!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to set reference photo');
+      Alert.alert('Error', 'Failed to analyze photo');
     }
   };
 
@@ -387,6 +388,12 @@ export default function PhotosScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+      
+      <AnalysisModal 
+        visible={analysisModalVisible}
+        onClose={() => setAnalysisModalVisible(false)}
+        imageUri={analysisImageUri}
+      />
     </SafeAreaView>
   );
 }

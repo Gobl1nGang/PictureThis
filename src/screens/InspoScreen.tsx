@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
 import * as FileSystem from 'expo-file-system';
-import { SetReferenceButton } from '../features/reference-photo';
+import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
 const numColumns = 2;
@@ -62,6 +62,8 @@ export default function InspoScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<PexelsPhoto | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
+  const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
 
   // Fetch photos from Pexels API
   const searchPhotos = async (query: string) => {
@@ -159,10 +161,9 @@ export default function InspoScreen() {
   };
 
   const handleSetReference = (photo: PexelsPhoto) => {
-    // Store reference for camera to pick up
-    global.referenceImageUri = photo.src.large;
+    setAnalysisImageUri(photo.src.large);
+    setAnalysisModalVisible(true);
     closePhotoModal();
-    Alert.alert('Reference Set', 'Switch to Camera tab to start live coaching!');
   };
 
   // Render individual photo item in grid
@@ -308,6 +309,12 @@ export default function InspoScreen() {
           </TouchableOpacity>
         </View>
       </Modal>
+      
+      <AnalysisModal 
+        visible={analysisModalVisible}
+        onClose={() => setAnalysisModalVisible(false)}
+        imageUri={analysisImageUri}
+      />
     </SafeAreaView>
   );
 }

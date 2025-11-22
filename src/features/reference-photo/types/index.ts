@@ -1,4 +1,5 @@
 export interface ReferenceAnalysis {
+  pictureType: string;
   style: string;
   subject: string;
   composition: string;
