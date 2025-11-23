@@ -2,7 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, TouchableOpacity, View, Image, Dimensions,
-  Alert, Modal, ScrollView, SafeAreaView, Animated
+  Alert, Modal, ScrollView, SafeAreaView, Animated, PanResponder
 } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
@@ -52,6 +52,11 @@ export default function AppCamera() {
   const [lastAIProcessedImage, setLastAIProcessedImage] = useState<AIProcessedImage | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
   const thumbnailAnim = useRef(new Animated.Value(0)).current;
+  const [focusPoint, setFocusPoint] = useState<{x: number, y: number} | null>(null);
+  const focusAnim = useRef(new Animated.Value(0)).current;
+  const [lastPinchDistance, setLastPinchDistance] = useState(0);
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false);
+  const zoomIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (permission?.granted) {
@@ -244,14 +249,77 @@ export default function AppCamera() {
 
   return (
     <View style={styles.container}>
-      <CameraView
+      <View
         style={styles.camera}
-        facing={facing}
-        ref={cameraRef}
-        zoom={zoom}
-        autofocus="on"
-        enableTorch={enableTorch}
+        {...PanResponder.create({
+          onMoveShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2,
+          onPanResponderMove: (evt) => {
+            if (evt.nativeEvent.touches.length === 2) {
+              const touch1 = evt.nativeEvent.touches[0];
+              const touch2 = evt.nativeEvent.touches[1];
+              const distance = Math.sqrt(
+                Math.pow(touch2.pageX - touch1.pageX, 2) + Math.pow(touch2.pageY - touch1.pageY, 2)
+              );
+              
+              if (lastPinchDistance > 0) {
+                const delta = distance - lastPinchDistance;
+                const newZoom = Math.max(0, Math.min(1, zoom + delta * 0.001));
+                setZoom(newZoom);
+                
+                // Show zoom indicator
+                if (!showZoomIndicator) {
+                  setShowZoomIndicator(true);
+                  Animated.timing(zoomIndicatorAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }).start();
+                }
+              }
+              setLastPinchDistance(distance);
+            }
+          },
+          onPanResponderRelease: () => {
+            setLastPinchDistance(0);
+            // Hide zoom indicator after delay
+            Animated.timing(zoomIndicatorAnim, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true,
+            }).start(() => setShowZoomIndicator(false));
+          },
+        }).panHandlers}
       >
+        <CameraView
+          style={StyleSheet.absoluteFillObject}
+          facing={facing}
+          ref={cameraRef}
+          zoom={zoom}
+          autofocus="on"
+          enableTorch={enableTorch}
+          onTouchEnd={(event) => {
+            if (event.nativeEvent.touches.length <= 1) {
+              const { locationX, locationY } = event.nativeEvent;
+              setFocusPoint({ x: locationX, y: locationY });
+              
+              // Animate focus indicator
+              focusAnim.setValue(0);
+              Animated.sequence([
+                Animated.timing(focusAnim, {
+                  toValue: 1,
+                  duration: 150,
+                  useNativeDriver: true,
+                }),
+                Animated.delay(600),
+                Animated.timing(focusAnim, {
+                  toValue: 0,
+                  duration: 150,
+                  useNativeDriver: true,
+                }),
+              ]).start(() => setFocusPoint(null));
+            }
+          }}
+        >
         <SafeAreaView style={styles.uiContainer}>
           {/* Top Controls */}
           <View style={styles.topControls}>
@@ -276,6 +344,54 @@ export default function AppCamera() {
                 size={28}
                 color="white"
               />
+            </TouchableOpacity>
+          </View>
+
+          {/* Temporary Zoom Controls for Testing */}
+          <View style={styles.tempZoomControls}>
+            <TouchableOpacity 
+              style={styles.zoomButton}
+              onPress={() => {
+                const newZoom = Math.max(0, zoom - 0.1);
+                setZoom(newZoom);
+                setShowZoomIndicator(true);
+                Animated.timing(zoomIndicatorAnim, {
+                  toValue: 1,
+                  duration: 200,
+                  useNativeDriver: true,
+                }).start();
+                setTimeout(() => {
+                  Animated.timing(zoomIndicatorAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => setShowZoomIndicator(false));
+                }, 1000);
+              }}
+            >
+              <Text style={styles.zoomButtonText}>-</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.zoomButton}
+              onPress={() => {
+                const newZoom = Math.min(1, zoom + 0.1);
+                setZoom(newZoom);
+                setShowZoomIndicator(true);
+                Animated.timing(zoomIndicatorAnim, {
+                  toValue: 1,
+                  duration: 200,
+                  useNativeDriver: true,
+                }).start();
+                setTimeout(() => {
+                  Animated.timing(zoomIndicatorAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                  }).start(() => setShowZoomIndicator(false));
+                }, 1000);
+              }}
+            >
+              <Text style={styles.zoomButtonText}>+</Text>
             </TouchableOpacity>
           </View>
 
@@ -318,6 +434,45 @@ export default function AppCamera() {
               <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
               <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
             </View>
+          )}
+
+          {/* Focus Indicator */}
+          {focusPoint && (
+            <Animated.View
+              style={[
+                styles.focusIndicator,
+                {
+                  left: focusPoint.x - 40,
+                  top: focusPoint.y - 40,
+                  opacity: focusAnim,
+                  transform: [{
+                    scale: focusAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1.5, 1],
+                    })
+                  }]
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.focusBox} />
+            </Animated.View>
+          )}
+
+          {/* Zoom Indicator */}
+          {showZoomIndicator && (
+            <Animated.View
+              style={[
+                styles.zoomIndicator,
+                { opacity: zoomIndicatorAnim }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.zoomTrack}>
+                <View style={[styles.zoomFill, { width: `${zoom * 100}%` }]} />
+              </View>
+              <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
+            </Animated.View>
           )}
 
           {/* AI Instruction Card */}
@@ -412,7 +567,8 @@ export default function AppCamera() {
           </View>
 
         </SafeAreaView>
-      </CameraView>
+        </CameraView>
+      </View>
 
       {/* Context Selector Modal */}
       <ContextSelector
@@ -768,6 +924,74 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  focusIndicator: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusBox: {
+    width: 60,
+    height: 60,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    backgroundColor: 'transparent',
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
+  },
+  zoomIndicator: {
+    position: 'absolute',
+    top: 100,
+    right: 20,
+    alignItems: 'center',
+    gap: 4,
+  },
+  zoomTrack: {
+    width: 4,
+    height: 80,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  zoomFill: {
+    position: 'absolute',
+    bottom: 0,
+    height: '100%',
+    backgroundColor: 'white',
+    borderRadius: 2,
+  },
+  zoomText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  tempZoomControls: {
+    position: 'absolute',
+    top: 200,
+    left: 20,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  zoomButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   modalContainer: {
     flex: 1,

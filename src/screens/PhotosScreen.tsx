@@ -319,6 +319,15 @@ export default function PhotosScreen() {
 
   return (
     <SafeAreaView style={styles.screenContainer}>
+      {/* Decorative border elements */}
+      <View style={styles.topDecoration}>
+        <Text style={styles.decorativeText}>✦ ✧ ✦</Text>
+      </View>
+
+      <View style={styles.bottomDecoration}>
+        <Text style={styles.decorativeText}>✦ ✧ ✦</Text>
+      </View>
+      
       <View style={styles.header}>
         {selectionMode ? (
           <View style={styles.selectionHeader}>
@@ -341,14 +350,13 @@ export default function PhotosScreen() {
           <View style={styles.normalHeader}>
             <View>
               <Text style={styles.headerText}>Photos</Text>
-              <Text style={styles.countText}>{photos.length} photos</Text>
             </View>
             <View style={styles.headerButtons}>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={addPhotosFromLibrary}
               >
-                <Text style={styles.addButtonText}>+ Add</Text>
+                <Text style={styles.addButtonText}>Add</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.selectButton}
@@ -419,37 +427,46 @@ export default function PhotosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#e5e0ca',
     justifyContent: 'center',
     alignItems: 'center',
   },
   screenContainer: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: '#e5e0ca',
   },
   header: {
     paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#d3c6a2',
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
   headerText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 42,
+    fontWeight: '300',
+    fontFamily: 'Snell Roundhand',
+    color: '#8b7355',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(139, 115, 85, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
   countText: {
     fontSize: 14,
-    color: '#666',
+    color: '#a69580',
     marginTop: 4,
+    fontFamily: 'Snell Roundhand',
+    letterSpacing: 0.5,
   },
   text: {
     fontSize: 18,
-    color: '#333',
+    color: '#8b7355',
     textAlign: 'center',
     marginBottom: 20,
+    fontFamily: 'Snell Roundhand',
+    letterSpacing: 1,
   },
   button: {
     backgroundColor: '#007AFF',
@@ -463,15 +480,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   grid: {
-    padding: 2,
+    paddingTop: 8,
+    paddingBottom: 8,
+    paddingLeft: 3,
+    paddingRight: 8,
   },
   photoContainer: {
-    margin: 1,
+    margin: 4,
+    borderRadius: 12,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
   },
   photo: {
-    width: imageSize,
-    height: imageSize,
+    width: imageSize - 8,
+    height: imageSize - 8,
     backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#d7d2bf',
   },
   loadingFooter: {
     padding: 20,
@@ -496,26 +525,39 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(128, 128, 128, 0.7)',
-    borderRadius: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#bba06b',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#b19068',
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#5a4f3a',
+    fontSize: 18,
+    fontWeight: '300',
+    fontFamily: 'Palatino',
+    letterSpacing: 1,
   },
   selectButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(128, 128, 128, 0.7)',
-    borderRadius: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#b19068',
   },
   selectButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#8b7355',
+    fontSize: 18,
+    fontWeight: '300',
+    fontFamily: 'Palatino',
+    letterSpacing: 1,
   },
   cancelText: {
     color: '#007AFF',
@@ -604,4 +646,30 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
+  // Decorative border styles
+  topDecoration: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  bottomDecoration: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 1,
+  },
+
+  decorativeText: {
+    fontSize: 20,
+    color: '#b19068',
+    fontFamily: 'Snell Roundhand',
+    opacity: 0.6,
+    letterSpacing: 8,
+  },
+
 });
