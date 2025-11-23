@@ -1,19 +1,12 @@
+
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
-import {
-  StyleSheet, Text, TouchableOpacity, View, Image, Dimensions,
-  Alert, Modal, ScrollView, SafeAreaView, Animated
-} from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Image, Dimensions, Alert, Modal, ScrollView, SafeAreaView, TouchableWithoutFeedback } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
-import { analyzeImage, AnalyzeImageOptions } from '../services/bedrock';
+import { analyzeImage } from '../services/bedrock';
 import { useReferencePhoto } from '../features/reference-photo';
-import { useUserProfile } from '../contexts/UserProfileContext';
-import { usePhotoContext } from '../contexts/PhotoContextContext';
-import InstructionEngine from '../features/camera/InstructionEngine';
-import ContextSelector from './ContextSelector';
 import { Ionicons } from '@expo/vector-icons';
-import { AIFeedback, AIInstruction } from '../types';
 
 const { width, height } = Dimensions.get('window');
 
@@ -25,29 +18,21 @@ export default function AppCamera() {
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
-
-  // AI Feedback State
-  const [aiFeedback, setAiFeedback] = useState<AIFeedback | null>(null);
-  const [currentInstruction, setCurrentInstruction] = useState<AIInstruction | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  // Camera Settings
+  const [feedback, setFeedback] = useState<string[]>([]);
+  const [score, setScore] = useState<number>(0);
   const [zoom, setZoom] = useState(0);
   const [showGrid, setShowGrid] = useState(false);
   const [enableTorch, setEnableTorch] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
-  // Context and Profile
-  const { profile } = useUserProfile();
-  const { currentContext, addReferencePhoto } = usePhotoContext();
-  const { referencePhoto, setReference, clearReference } = useReferencePhoto();
-
-  // UI State
+  // Reference photo functionality
+  const { referencePhoto, isAnalyzing, setReference, clearReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [showContextSelector, setShowContextSelector] = useState(false);
+  const [showStyleModal, setShowStyleModal] = useState(false);
+
+  // Photo thumbnail preview
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
-  const thumbnailAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (permission?.granted) {
@@ -57,36 +42,42 @@ export default function AppCamera() {
       if (global.referenceImageUri) {
         setReference(global.referenceImageUri);
         setShowAnalysisModal(true);
-        global.referenceImageUri = null;
+        global.referenceImageUri = null; // Clear after use
       }
     }
   }, [permission, setReference]);
 
-  // Sync reference photo to context
-  useEffect(() => {
-    if (referencePhoto) {
-      addReferencePhoto(referencePhoto);
-    }
-  }, [referencePhoto]);
-
-  // Update current instruction when feedback changes
-  useEffect(() => {
-    if (aiFeedback) {
-      const instruction = InstructionEngine.getPriorityInstruction(aiFeedback);
-      setCurrentInstruction(instruction);
-    }
-  }, [aiFeedback]);
-
   const toggleGrid = () => setShowGrid(!showGrid);
-  const toggleFlash = () => setEnableTorch(current => !current);
-  const toggleCameraFacing = () => setFacing(current => (current === 'back' ? 'front' : 'back'));
 
-  // Analyze scene with context awareness
+  const toggleFlash = () => {
+    setEnableTorch(current => !current);
+  };
+
+  // Manual analysis trigger
+  const handleGetFeedback = async () => {
+    await analyzeScene();
+  };
+
+  if (!permission) return <View />;
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.message}>We need your permission to show the camera</Text>
+        <TouchableOpacity style={styles.permButton} onPress={requestPermission}>
+          <Text style={styles.permText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  function toggleCameraFacing() {
+    setFacing(current => (current === 'back' ? 'front' : 'back'));
+  }
+
   const analyzeScene = async () => {
-    if (cameraRef.current || isAnalyzing) {
-      setIsAnalyzing(true);
+    if (cameraRef.current) {
       try {
-        const photo = await cameraRef.current!.takePictureAsync({
+        const photo = await cameraRef.current.takePictureAsync({
           quality: 0.3,
           skipProcessing: true,
         });
@@ -99,77 +90,55 @@ export default function AppCamera() {
           );
 
           if (manipResult.base64) {
-            // Build options from profile and context
-            const options: AnalyzeImageOptions = {
-              userSkillLevel: profile?.skillLevel || 'Intermediate',
-              preferredStyle: profile?.preferredStyles[0] || 'General Professional',
-              contextType: currentContext?.type,
-              timeOfDay: currentContext?.timeOfDay,
-              environment: currentContext?.environment,
-            };
-
-            // Add reference photo if available
-            if (referencePhoto?.uri) {
-              try {
-                const refManipResult = await manipulateAsync(
-                  referencePhoto.uri,
-                  [{ resize: { width: 480 } }],
-                  { compress: 0.5, format: SaveFormat.JPEG, base64: true }
-                );
-                if (refManipResult.base64) {
-                  options.referencePhotoBase64 = refManipResult.base64;
-                  if (referencePhoto.analysis) {
-                    options.referenceAnalysis = JSON.stringify(referencePhoto.analysis);
-                  }
-                }
-              } catch (error) {
-                console.log('Error processing reference photo:', error);
-              }
-            }
-
-            const rawAdvice = await analyzeImage(manipResult.base64, options);
+            const rawAdvice = await analyzeImage(manipResult.base64);
 
             try {
               const text = rawAdvice.trim();
-              let score = 0;
+              let newScore = 0;
+              let newFeedback: string[] = [];
 
               // Extract Score
               const scoreMatch = text.match(/Score:\s*(\d+)/i);
               if (scoreMatch) {
-                score = parseInt(scoreMatch[1], 10);
+                newScore = parseInt(scoreMatch[1], 10);
               }
 
-              // Parse into structured instructions
-              const feedback = InstructionEngine.parseInstructions(text, score);
-              setAiFeedback(feedback);
+              // Extract Feedback
+              const feedbackMatch = text.match(/Feedback:\s*(.+)/is);
+              if (feedbackMatch) {
+                const feedbackText = feedbackMatch[1];
+                newFeedback = feedbackText.split(/\.|,|\n/)
+                  .map(s => s.trim())
+                  .filter(s => s.length > 2) // Filter out tiny noise
+                  .slice(0, 2);
+              } else {
+                // Fallback if "Feedback:" keyword is missing, treat whole text as feedback
+                newFeedback = text.split(/\.|,|\n/)
+                  .map(s => s.trim())
+                  .filter(s => s.length > 2)
+                  .slice(0, 2);
+              }
+
+              setScore(newScore);
+
+              if (newScore >= 90 || text.toUpperCase().includes("PERFECT SHOT")) {
+                setFeedback(["PERFECT SHOT!", "Take the picture!"]);
+              } else {
+                setFeedback(newFeedback.length > 0 ? newFeedback : ["Analyzing..."]);
+              }
 
             } catch (e) {
               console.log("Analysis Parse Error:", e, "Raw:", rawAdvice);
-              setAiFeedback({
-                score: 0,
-                instructions: [{
-                  id: 'default',
-                  step: 1,
-                  totalSteps: 1,
-                  text: 'Hold steady...',
-                  category: 'composition',
-                  priority: 'medium',
-                }],
-                perfectShot: false,
-                timestamp: Date.now(),
-              });
+              setFeedback(["Hold steady..."]);
             }
           }
         }
       } catch (error) {
-        console.log('Analysis error:', error);
-      } finally {
-        setIsAnalyzing(false);
+        // Ignore capture errors (common when camera is initializing or busy)
       }
     }
-  };
+  }
 
-  // Take high-res picture
   const takeHighResPicture = async () => {
     if (cameraRef.current) {
       try {
@@ -179,23 +148,12 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
-          // Show thumbnail with animation
+          // Show thumbnail preview
           setLastPhotoUri(photo.uri);
           setShowThumbnail(true);
 
-          Animated.sequence([
-            Animated.timing(thumbnailAnim, {
-              toValue: 1,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-            Animated.delay(2500),
-            Animated.timing(thumbnailAnim, {
-              toValue: 0,
-              duration: 300,
-              useNativeDriver: true,
-            }),
-          ]).start(() => setShowThumbnail(false));
+          // Hide thumbnail after 3 seconds
+          setTimeout(() => setShowThumbnail(false), 3000);
 
           const asset = await MediaLibrary.createAssetAsync(photo.uri);
           const album = await MediaLibrary.getAlbumAsync('PictureThis');
@@ -214,17 +172,7 @@ export default function AppCamera() {
     }
   };
 
-  if (!permission) return <View />;
-  if (!permission.granted) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.message}>We need your permission to show the camera</Text>
-        <TouchableOpacity style={styles.permButton} onPress={requestPermission}>
-          <Text style={styles.permText}>Grant Permission</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+
 
   return (
     <View style={styles.container}>
@@ -242,18 +190,6 @@ export default function AppCamera() {
             <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
               <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
             </TouchableOpacity>
-
-            {/* Context Badge */}
-            <TouchableOpacity
-              style={styles.contextBadge}
-              onPress={() => setShowContextSelector(true)}
-            >
-              <Text style={styles.contextBadgeText}>
-                {currentContext?.type || 'Set Context'} • {currentContext?.timeOfDay || 'Auto'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="white" />
-            </TouchableOpacity>
-
             <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
               <Ionicons
                 name={enableTorch ? "flash" : "flash-off"}
@@ -277,7 +213,10 @@ export default function AppCamera() {
                     {
                       text: "Clear",
                       style: "destructive",
-                      onPress: () => clearReference()
+                      onPress: () => {
+                        // Clear reference using the hook's clearReference function
+                        clearReference();
+                      }
                     }
                   ]
                 );
@@ -304,49 +243,27 @@ export default function AppCamera() {
             </View>
           )}
 
-          {/* AI Instruction Card */}
-          {currentInstruction && (
-            <View style={styles.instructionCard}>
-              <View style={styles.instructionHeader}>
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.scoreLabel}>Score</Text>
-                  <Text style={[
-                    styles.scoreValue,
-                    { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
-                  ]}>
-                    {aiFeedback?.score}
-                  </Text>
-                </View>
-                <View style={styles.progressDots}>
-                  {aiFeedback?.instructions.map((_, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.dot,
-                        idx === currentInstruction.step - 1 && styles.dotActive
-                      ]}
-                    />
-                  ))}
-                </View>
+          {/* AI Feedback Overlay - Persistent */}
+          {feedback.length > 0 && (
+            <View style={styles.feedbackContainer}>
+              <View style={styles.scoreContainer}>
+                <Text style={styles.scoreLabel}>Score</Text>
+                <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
+                  {score}
+                </Text>
               </View>
-
-              <Text style={styles.instructionText}>
-                {currentInstruction.text}
-              </Text>
-
-              {aiFeedback?.perfectShot && (
-                <View style={styles.perfectShotBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color="#4CD964" />
-                  <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
-                </View>
-              )}
+              <View style={styles.adviceContainer}>
+                {feedback.map((item, index) => (
+                  <Text key={index} style={styles.adviceText}>{item}</Text>
+                ))}
+              </View>
             </View>
           )}
 
-          {/* Manual Feedback Button */}
+          {/* Manual Feedback Button - Placed above bottom controls */}
           <TouchableOpacity
             style={styles.feedbackButton}
-            onPress={analyzeScene}
+            onPress={handleGetFeedback}
             disabled={isAnalyzing}
           >
             <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
@@ -354,28 +271,6 @@ export default function AppCamera() {
               {isAnalyzing ? "Analyzing..." : "Get Feedback"}
             </Text>
           </TouchableOpacity>
-
-          {/* Photo Thumbnail Preview */}
-          {showThumbnail && lastPhotoUri && (
-            <Animated.View
-              style={[
-                styles.thumbnailPreview,
-                {
-                  opacity: thumbnailAnim,
-                  transform: [{
-                    scale: thumbnailAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1],
-                    })
-                  }]
-                }
-              ]}
-            >
-              <TouchableOpacity onPress={() => {/* TODO: Open editor */ }}>
-                <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
 
           {/* Bottom Controls */}
           <View style={styles.bottomControls}>
@@ -397,12 +292,6 @@ export default function AppCamera() {
 
         </SafeAreaView>
       </CameraView>
-
-      {/* Context Selector Modal */}
-      <ContextSelector
-        visible={showContextSelector}
-        onClose={() => setShowContextSelector(false)}
-      />
 
       {/* Reference Analysis Modal */}
       <Modal
@@ -511,28 +400,8 @@ const styles = StyleSheet.create({
   topControls: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
     padding: 20,
     paddingTop: 10,
-  },
-  iconButton: {
-    padding: 8,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
-  },
-  contextBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  contextBadgeText: {
-    color: 'white',
-    fontSize: 13,
-    fontWeight: '600',
   },
   referenceIndicator: {
     position: 'absolute',
@@ -583,115 +452,56 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
-  instructionCard: {
+  feedbackContainer: {
     position: 'absolute',
-    top: 120,
+    top: 100,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  styleSuggestionButton: {
+    height: 40,
+    width: width * 0.5,
+    backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
-    padding: 20,
-    borderWidth: 2,
+    paddingHorizontal: 15,
+    justifyContent: 'center',
+    borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
-  instructionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+  styleSuggestionText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
   },
   scoreContainer: {
     alignItems: 'center',
+    paddingRight: 16,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.3)',
   },
   scoreLabel: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
   },
   scoreValue: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
   },
-  progressDots: {
-    flexDirection: 'row',
-    gap: 6,
+  adviceContainer: {
+    flex: 1,
+    paddingLeft: 16,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
-  dotActive: {
-    backgroundColor: '#007AFF',
-    width: 24,
-  },
-  instructionText: {
+  adviceText: {
     color: 'white',
-    fontSize: 18,
-    lineHeight: 26,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  perfectShotBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    gap: 8,
-  },
-  perfectShotText: {
-    color: '#4CD964',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  feedbackButton: {
-    position: 'absolute',
-    bottom: 140,
-    alignSelf: 'center',
-    backgroundColor: '#6366f1',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  feedbackButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  thumbnailPreview: {
-    position: 'absolute',
-    bottom: 150,
-    left: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 3,
-    borderColor: 'white',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-  },
-  thumbnailImage: {
-    width: '100%',
-    height: '100%',
+    fontSize: 14,
+    lineHeight: 20,
   },
   bottomControls: {
     paddingBottom: 50,
@@ -699,6 +509,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  iconButton: {
+    padding: 8,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    borderRadius: 20,
   },
   spacer: {
     width: 50,
@@ -732,6 +547,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  feedbackButton: {
+    position: 'absolute',
+    bottom: 140,
+    alignSelf: 'center',
+    backgroundColor: '#6366f1',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  feedbackButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 16,
   },
   modalContainer: {
     flex: 1,
@@ -804,4 +643,11 @@ const styles = StyleSheet.create({
     color: '#666',
     lineHeight: 22,
   },
+  analysisText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#333',
+  },
 });
+
+
