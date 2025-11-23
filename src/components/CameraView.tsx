@@ -41,6 +41,14 @@ export default function AppCamera() {
   // Editing screen
   const [showEditingScreen, setShowEditingScreen] = useState(false);
   const [editingPhotoUri, setEditingPhotoUri] = useState<string | null>(null);
+  
+  // Debug editing screen state changes
+  useEffect(() => {
+    console.log('showEditingScreen changed to:', showEditingScreen);
+    if (showEditingScreen) {
+      console.log('Editing screen opened with URI:', editingPhotoUri);
+    }
+  }, [showEditingScreen, editingPhotoUri]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -176,24 +184,13 @@ export default function AppCamera() {
       console.log('Photo taken:', photo?.uri);
 
       if (photo?.uri) {
-        console.log('Setting thumbnail and popup...');
+        console.log('Setting thumbnail...');
         // Show thumbnail preview
         setLastPhotoUri(photo.uri);
         setShowThumbnail(true);
         
         // Hide thumbnail after 3 seconds
         setTimeout(() => setShowThumbnail(false), 3000);
-        
-        // Photo ready for editing via thumbnail
-        
-        // Auto-navigate to editing screen
-        setTimeout(() => {
-          console.log('Auto-navigating to editing screen with:', photo.uri);
-          setEditingPhotoUri(photo.uri);
-          setShowEditingScreen(true);
-        }, 500);
-        
-        Alert.alert("Photo taken!", "Photo captured successfully.");
       } else {
         console.log('No photo URI');
       }
@@ -279,9 +276,16 @@ export default function AppCamera() {
           
           {/* Photo Thumbnail Preview */}
           {showThumbnail && lastPhotoUri && (
-            <View style={styles.thumbnailContainer}>
+            <TouchableOpacity 
+              style={styles.thumbnailContainer}
+              onPress={() => {
+                console.log('Navigate to editing screen with:', lastPhotoUri);
+                setEditingPhotoUri(lastPhotoUri);
+                setShowEditingScreen(true);
+              }}
+            >
               <Image source={{ uri: lastPhotoUri }} style={styles.thumbnail} />
-            </View>
+            </TouchableOpacity>
           )}
         </View>
       </View>
