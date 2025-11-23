@@ -76,14 +76,7 @@ function MainApp() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Image
-          source={require('./assets/logo.png')}
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-      </View>
+    <SafeAreaView style={styles.container}>
       {renderScreen()}
 
       <View style={styles.tabBar}>
@@ -115,7 +108,7 @@ function MainApp() {
       </View>
 
       <StatusBar style="light" />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -134,19 +127,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  header: {
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#000',
-    paddingTop: 10, // Adjust for status bar if needed, though SafeAreaView is better
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  headerLogo: {
-    width: 120,
-    height: 40,
-  },
+
   tabBar: {
     flexDirection: 'row',
     backgroundColor: '#000',
