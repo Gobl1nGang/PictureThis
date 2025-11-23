@@ -79,7 +79,7 @@ export default function SettingsScreen() {
       }}
     >
       <Text style={styles.dropdownText}>{value}</Text>
-      <Ionicons name="chevron-down" size={16} color="#000000" />
+      <Ionicons name="chevron-down" size={16} color="white" />
     </TouchableOpacity>
   );
 
@@ -149,7 +149,7 @@ export default function SettingsScreen() {
           <Switch
             value={autoSave}
             onValueChange={setAutoSave}
-            trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
+            trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
           />
         </SettingRow>
 
@@ -189,7 +189,7 @@ export default function SettingsScreen() {
             <Ionicons
               name="chevron-down"
               size={20}
-              color="#000000"
+              color="white"
             />
           </Animated.View>
         </TouchableOpacity>
@@ -234,7 +234,7 @@ export default function SettingsScreen() {
             <Switch
               value={hapticFeedback}
               onValueChange={setHapticFeedback}
-              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
             />
           </SettingRow>
 
@@ -242,7 +242,7 @@ export default function SettingsScreen() {
             <Switch
               value={soundEffects}
               onValueChange={setSoundEffects}
-              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
             />
           </SettingRow>
 
@@ -258,7 +258,7 @@ export default function SettingsScreen() {
             <Switch
               value={usageAnalytics}
               onValueChange={setUsageAnalytics}
-              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
             />
           </SettingRow>
 
@@ -280,46 +280,53 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#050505',
   },
   header: {
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(10, 10, 20, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: 'rgba(76, 217, 100, 0.3)',
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
   headerText: {
     fontSize: 32,
     fontWeight: '600',
-    color: '#000000',
+    color: 'white',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(76, 217, 100, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
   section: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     marginTop: 20,
     paddingVertical: 20,
     borderRadius: 35,
     marginHorizontal: width * 0.04,
-    shadowColor: '#22c55e',
+    shadowColor: '#4CD964',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 10,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#000000',
+    color: 'white',
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     marginBottom: 10,
     letterSpacing: 0.3,
   },
@@ -330,58 +337,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333333',
+    color: '#ccc',
     flex: 1,
     letterSpacing: 0.2,
   },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 25,
     minWidth: 130,
     borderWidth: 1,
-    borderColor: '#22c55e',
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
     elevation: 8,
   },
   dropdownText: {
     fontSize: 14,
-    color: '#333333',
+    color: 'white',
     marginRight: 8,
   },
   advancedToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     paddingHorizontal: 28,
     paddingVertical: 22,
     marginTop: 20,
     marginHorizontal: width * 0.04,
     borderRadius: 35,
-    shadowColor: '#22c55e',
+    shadowColor: '#4CD964',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 10,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   advancedToggleText: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#000000',
+    color: 'white',
     letterSpacing: 0.3,
   },
   buttonRow: {
@@ -389,16 +396,16 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   clearButton: {
-    backgroundColor: '#000000',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#000000',
+    borderColor: '#FF3B30',
   },
   clearButtonText: {
-    color: '#FFFFFF',
+    color: '#FF3B30',
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.2,

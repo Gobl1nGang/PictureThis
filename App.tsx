@@ -76,7 +76,7 @@ function MainApp() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {renderScreen()}
 
       <View style={styles.tabBar}>
@@ -98,7 +98,7 @@ function MainApp() {
             <Ionicons
               name={getTabIcon(tabName) as any}
               size={22}
-              color={activeTab === tabName ? '#22c55e' : '#999999'}
+              color={activeTab === tabName ? '#4CD964' : '#666'}
             />
             <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>
               {tabName}
@@ -107,8 +107,8 @@ function MainApp() {
         ))}
       </View>
 
-      <StatusBar style="light" />
-    </SafeAreaView>
+      <StatusBar style="light" translucent backgroundColor="transparent" />
+    </View>
   );
 }
 
@@ -130,20 +130,26 @@ const styles = StyleSheet.create({
 
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'rgba(10, 10, 20, 0.95)', // Deep black/blue
     borderTopWidth: 1,
-    borderTopColor: '#eee',
-    paddingBottom: 0,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 20, // Add padding for home indicator
     paddingTop: 15,
-    position: 'relative',
+    position: 'absolute', // Float over content if needed, or keep relative but dark
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   slideIndicator: {
     position: 'absolute',
     top: 0,
     width: tabWidth,
-    height: 3,
-    backgroundColor: '#22c55e',
-    borderRadius: 2,
+    height: 2,
+    backgroundColor: '#4CD964', // Neon Green
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
   },
   tab: {
     flex: 1,
@@ -152,11 +158,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabText: {
-    color: '#999999',
+    color: '#666',
     fontSize: 11,
     fontWeight: '500',
   },
   activeTabText: {
-    color: '#22c55e',
+    color: '#4CD964',
+    fontWeight: '600',
+    textShadowColor: 'rgba(76, 217, 100, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
   },
 });

@@ -2,8 +2,18 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
 import {
   StyleSheet, Text, TouchableOpacity, View, Image, Dimensions,
-  Alert, Modal, ScrollView, SafeAreaView, Animated, PanResponder
+  Alert, Modal, ScrollView, Animated, PanResponder,
+  LayoutAnimation, Platform, UIManager, Easing
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Slider from '@react-native-community/slider';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android') {
+  if (UIManager.setLayoutAnimationEnabledExperimental) {
+    UIManager.setLayoutAnimationEnabledExperimental(true);
+  }
+}
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage, AnalyzeImageOptions } from '../services/bedrock';
@@ -17,6 +27,7 @@ import PhotoEditor from '../screens/PhotoEditor';
 import { Ionicons } from '@expo/vector-icons';
 import { AIFeedback, AIInstruction } from '../types/index';
 import { VisualInstructionOverlay, InstructionType } from './VisualInstructionOverlay';
+import { CompositionOverlay, CompositionType } from './CompositionOverlay';
 
 const { width, height } = Dimensions.get('window');
 
@@ -37,8 +48,15 @@ export default function AppCamera() {
 
   // Camera Settings
   const [zoom, setZoom] = useState(0);
-  const [showGrid, setShowGrid] = useState(false);
+  const [compositionMode, setCompositionMode] = useState<CompositionType | 'auto'>('none');
+  const [activeOverlay, setActiveOverlay] = useState<CompositionType>('none');
+  const [showCompositionMenu, setShowCompositionMenu] = useState(false);
   const [enableTorch, setEnableTorch] = useState(false);
+
+  // Ghost Overlay State
+  const [showGhostOverlay, setShowGhostOverlay] = useState(false);
+  const [ghostOpacity, setGhostOpacity] = useState(0.5);
+
   const cameraRef = useRef<CameraView>(null);
 
   // Context and Profile
@@ -62,6 +80,31 @@ export default function AppCamera() {
   const [isInstructionMinimized, setIsInstructionMinimized] = useState(false);
   const [minimizedSide, setMinimizedSide] = useState<'left' | 'right'>('right');
   const instructionPanAnim = useRef(new Animated.Value(0)).current;
+
+  // Scanning Animation - Smoother and faster
+  const scanAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isAnalyzing) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanAnim, {
+            toValue: 1,
+            duration: 1200, // Faster
+            easing: Easing.inOut(Easing.ease), // Smoother
+            useNativeDriver: true,
+          }),
+          Animated.timing(scanAnim, {
+            toValue: 0,
+            duration: 0,
+            useNativeDriver: true,
+          })
+        ])
+      ).start();
+    } else {
+      scanAnim.setValue(0);
+    }
+  }, [isAnalyzing]);
 
   useEffect(() => {
     if (permission?.granted) {
@@ -135,7 +178,37 @@ export default function AppCamera() {
     }
   }, [aiFeedback]);
 
-  const toggleGrid = () => setShowGrid(!showGrid);
+  // Auto-Composition Logic
+  useEffect(() => {
+    if (compositionMode === 'auto' && aiFeedback) {
+      const text = aiFeedback.instructions.map(i => i.text.toLowerCase()).join(' ');
+
+      if (text.includes('rule of thirds') || text.includes('thirds') || text.includes('grid')) {
+        setActiveOverlay('rule_of_thirds');
+      } else if (text.includes('center') || text.includes('symmetry') || text.includes('middle')) {
+        setActiveOverlay('center');
+      } else if (text.includes('golden ratio') || text.includes('phi')) {
+        setActiveOverlay('golden_ratio');
+      } else if (text.includes('spiral') || text.includes('fibonacci')) {
+        setActiveOverlay('golden_spiral_right');
+      } else if (text.includes('diagonal') || text.includes('triangle') || text.includes('leading lines')) {
+        setActiveOverlay('golden_triangle');
+      }
+      // Keep current if no specific keyword found
+    } else if (compositionMode !== 'auto') {
+      setActiveOverlay(compositionMode as CompositionType);
+    }
+  }, [compositionMode, aiFeedback]);
+
+  const toggleCompositionMenu = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setShowCompositionMenu(!showCompositionMenu);
+  };
+  const selectCompositionMode = (mode: CompositionType | 'auto') => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setCompositionMode(mode);
+    setShowCompositionMenu(false);
+  };
   const toggleFlash = () => setEnableTorch(current => !current);
   const toggleCameraFacing = () => setFacing(current => (current === 'back' ? 'front' : 'back'));
 
@@ -368,25 +441,88 @@ export default function AppCamera() {
               ]).start(() => setFocusPoint(null));
             }
           }}
-        >
-          <SafeAreaView style={styles.uiContainer}>
-            {/* Top Controls */}
-            <View style={styles.topControls}>
-              <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
-                <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
+        />
+
+        {/* Ghost Overlay */}
+        {showGhostOverlay && referencePhoto?.uri && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <Image
+              source={{ uri: referencePhoto.uri }}
+              style={[StyleSheet.absoluteFillObject, { opacity: ghostOpacity }]}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
+        {/* Scanning Effect */}
+        {isAnalyzing && (
+          <Animated.View
+            style={[
+              styles.scanningLine,
+              {
+                transform: [{
+                  translateY: scanAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, height],
+                  })
+                }]
+              }
+            ]}
+            pointerEvents="none"
+          />
+        )}
+
+        <SafeAreaView style={styles.uiContainer} pointerEvents="box-none">
+          {/* Top Controls */}
+          <View style={styles.topControls}>
+            <View>
+              <TouchableOpacity onPress={toggleCompositionMenu} style={styles.iconButton}>
+                <Ionicons name={compositionMode !== 'none' ? "grid" : "grid-outline"} size={28} color="white" />
               </TouchableOpacity>
 
-              {/* Context Badge */}
-              <TouchableOpacity
-                style={styles.contextBadge}
-                onPress={() => setShowContextSelector(true)}
-              >
-                <Text style={styles.contextBadgeText}>
-                  {currentContext?.type || 'Set Context'} • {currentContext?.timeOfDay || 'Auto'}
-                </Text>
-                <Ionicons name="chevron-down" size={16} color="white" />
-              </TouchableOpacity>
+              {/* Composition Menu */}
+              {showCompositionMenu && (
+                <View style={styles.compositionMenu}>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('auto')}>
+                    <Text style={[styles.menuText, compositionMode === 'auto' && styles.activeMenuText]}>Auto ✨</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('none')}>
+                    <Text style={[styles.menuText, compositionMode === 'none' && styles.activeMenuText]}>None</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('rule_of_thirds')}>
+                    <Text style={[styles.menuText, compositionMode === 'rule_of_thirds' && styles.activeMenuText]}>Thirds</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('golden_ratio')}>
+                    <Text style={[styles.menuText, compositionMode === 'golden_ratio' && styles.activeMenuText]}>Golden</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('golden_spiral_right')}>
+                    <Text style={[styles.menuText, compositionMode === 'golden_spiral_right' && styles.activeMenuText]}>Spiral</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('center')}>
+                    <Text style={[styles.menuText, compositionMode === 'center' && styles.activeMenuText]}>Center</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('diagonal')}>
+                    <Text style={[styles.menuText, compositionMode === 'diagonal' && styles.activeMenuText]}>Diagonal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('golden_triangle')}>
+                    <Text style={[styles.menuText, compositionMode === 'golden_triangle' && styles.activeMenuText]}>Triangle</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
 
+            {/* Context Badge */}
+            <TouchableOpacity
+              style={styles.contextBadge}
+              onPress={() => setShowContextSelector(true)}
+            >
+              <Text style={styles.contextBadgeText}>
+                {currentContext?.type || 'Set Context'} • {currentContext?.timeOfDay || 'Auto'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="white" />
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
                 <Ionicons
                   name={enableTorch ? "flash" : "flash-off"}
@@ -394,246 +530,266 @@ export default function AppCamera() {
                   color="white"
                 />
               </TouchableOpacity>
-            </View>
 
-
-            {/* Reference Photo Indicator */}
-            {referencePhoto && (
-              <TouchableOpacity
-                style={styles.referenceIndicator}
-                onPress={() => setShowAnalysisModal(true)}
-                onLongPress={() => {
-                  Alert.alert(
-                    "Clear Reference",
-                    "Remove the current reference photo?",
-                    [
-                      { text: "Cancel", style: "cancel" },
-                      {
-                        text: "Clear",
-                        style: "destructive",
-                        onPress: () => clearReference()
-                      }
-                    ]
-                  );
-                }}
-              >
-                <Image
-                  source={{ uri: referencePhoto.uri }}
-                  style={styles.referenceThumbnail}
-                />
-                <View style={styles.referenceLabel}>
-                  <Ionicons name="image" size={12} color="white" />
-                  <Text style={styles.referenceLabelText}>REF</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* Grid Overlay */}
-            {showGrid && (
-              <View style={styles.gridContainer} pointerEvents="none">
-                <View style={[styles.gridLineVertical, { left: width / 3 }]} />
-                <View style={[styles.gridLineVertical, { left: width * 2 / 3 }]} />
-                <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
-                <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
-              </View>
-            )}
-
-            {/* Focus Indicator */}
-            {focusPoint && (
-              <Animated.View
-                style={[
-                  styles.focusIndicator,
-                  {
-                    left: focusPoint.x - 40,
-                    top: focusPoint.y - 40,
-                    opacity: focusAnim,
-                    transform: [{
-                      scale: focusAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1.5, 1],
-                      })
-                    }]
-                  }
-                ]}
-                pointerEvents="none"
-              >
-                <View style={styles.focusBox} />
-              </Animated.View>
-            )}
-
-            {/* Zoom Indicator */}
-            {showZoomIndicator && (
-              <Animated.View
-                style={[
-                  styles.zoomIndicator,
-                  { opacity: zoomIndicatorAnim }
-                ]}
-                pointerEvents="none"
-              >
-                <View style={styles.zoomTrack}>
-                  <View style={[styles.zoomFill, { width: `${zoom * 100}%` }]} />
-                </View>
-                <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
-              </Animated.View>
-            )}
-
-            {/* Visual Instruction Overlay */}
-            <VisualInstructionOverlay instructions={visualInstructions} />
-            {/* AI Instruction Card */}
-            {currentInstruction && (
-              <Animated.View
-                style={[
-                  isInstructionMinimized ? styles.instructionCardMinimized : styles.instructionCard,
-                  {
-                    transform: [{ translateX: instructionPanAnim }],
-                    right: isInstructionMinimized && minimizedSide === 'right' ? 10 : undefined,
-                    left: isInstructionMinimized && minimizedSide === 'left' ? 10 : undefined,
-                  }
-                ]}
-                {...PanResponder.create({
-                  onStartShouldSetPanResponder: () => true,
-                  onMoveShouldSetPanResponder: (evt, gestureState) => {
-                    return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 5;
-                  },
-                  onPanResponderGrant: () => {
-                    instructionPanAnim.setOffset(instructionPanAnim._value);
-                  },
-                  onPanResponderMove: Animated.event(
-                    [null, { dx: instructionPanAnim }],
-                    { useNativeDriver: false }
-                  ),
-                  onPanResponderRelease: (evt, gestureState) => {
-                    instructionPanAnim.flattenOffset();
-                    
-                    if (gestureState.dx > 80) {
-                      // Swipe right
-                      setMinimizedSide('right');
-                      setIsInstructionMinimized(true);
-                      Animated.spring(instructionPanAnim, {
-                        toValue: 0,
-                        useNativeDriver: false,
-                      }).start();
-                    } else if (gestureState.dx < -80) {
-                      // Swipe left
-                      setMinimizedSide('left');
-                      setIsInstructionMinimized(true);
-                      Animated.spring(instructionPanAnim, {
-                        toValue: 0,
-                        useNativeDriver: false,
-                      }).start();
-                    } else {
-                      // Snap back
-                      Animated.spring(instructionPanAnim, {
-                        toValue: 0,
-                        useNativeDriver: false,
-                      }).start();
-                    }
-                  },
-                }).panHandlers}
-              >
+              {/* Ghost Toggle (Visible only with reference) */}
+              {referencePhoto && (
                 <TouchableOpacity
-                  onPress={() => {
-                    if (isInstructionMinimized) {
-                      setIsInstructionMinimized(false);
-                      Animated.spring(instructionPanAnim, {
-                        toValue: 0,
-                        useNativeDriver: false,
-                      }).start();
-                    }
-                  }}
-                  activeOpacity={isInstructionMinimized ? 0.8 : 1}
+                  style={[styles.iconButton, showGhostOverlay && styles.activeIconButton]}
+                  onPress={() => setShowGhostOverlay(!showGhostOverlay)}
                 >
-                  {isInstructionMinimized ? (
-                    <Text style={[
-                      styles.tabScore,
-                      { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
-                    ]}>
-                      {aiFeedback?.score}
-                    </Text>
-                  ) : (
-                    <>
-                      <View style={styles.instructionHeader}>
-                        <View style={styles.scoreContainer}>
-                          <Text style={styles.scoreLabel}>Score</Text>
-                          <Text style={[
-                            styles.scoreValue,
-                            { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
-                          ]}>
-                            {aiFeedback?.score}
-                          </Text>
-                        </View>
+                  <Ionicons name="eye" size={28} color={showGhostOverlay ? "#4CD964" : "white"} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
 
+
+          {/* Reference Photo Indicator */}
+          {referencePhoto && (
+            <TouchableOpacity
+              style={styles.referenceIndicator}
+              onPress={() => setShowAnalysisModal(true)}
+              onLongPress={() => {
+                Alert.alert(
+                  "Clear Reference",
+                  "Remove the current reference photo?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Clear",
+                      style: "destructive",
+                      onPress: () => clearReference()
+                    }
+                  ]
+                );
+              }}
+            >
+              <Image
+                source={{ uri: referencePhoto.uri }}
+                style={styles.referenceThumbnail}
+              />
+              <View style={styles.referenceLabel}>
+                <Ionicons name="image" size={12} color="white" />
+                <Text style={styles.referenceLabelText}>REF</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
+          {/* Composition Overlay */}
+          <CompositionOverlay type={activeOverlay} width={width} height={height} />
+
+          {/* Focus Indicator */}
+          {focusPoint && (
+            <Animated.View
+              style={[
+                styles.focusIndicator,
+                {
+                  left: focusPoint.x - 40,
+                  top: focusPoint.y - 40,
+                  opacity: focusAnim,
+                  transform: [{
+                    scale: focusAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1.5, 1],
+                    })
+                  }]
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.focusBox} />
+            </Animated.View>
+          )}
+
+          {/* Zoom Indicator */}
+          {showZoomIndicator && (
+            <Animated.View
+              style={[
+                styles.zoomIndicator,
+                { opacity: zoomIndicatorAnim }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.zoomTrack}>
+                <View style={[styles.zoomFill, { width: `${zoom * 100}%` }]} />
+              </View>
+              <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
+            </Animated.View>
+          )}
+
+          {/* Visual Instruction Overlay */}
+          <VisualInstructionOverlay instructions={visualInstructions} />
+          {/* AI Instruction Card */}
+          {currentInstruction && (
+            <Animated.View
+              style={[
+                isInstructionMinimized ? styles.instructionCardMinimized : styles.instructionCard,
+                {
+                  transform: [{ translateX: instructionPanAnim }],
+                  right: isInstructionMinimized && minimizedSide === 'right' ? 10 : undefined,
+                  left: isInstructionMinimized && minimizedSide === 'left' ? 10 : undefined,
+                }
+              ]}
+              {...PanResponder.create({
+                onStartShouldSetPanResponder: () => true,
+                onMoveShouldSetPanResponder: (evt, gestureState) => {
+                  return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 5;
+                },
+                onPanResponderGrant: () => {
+                  instructionPanAnim.setOffset((instructionPanAnim as any)._value);
+                },
+                onPanResponderMove: Animated.event(
+                  [null, { dx: instructionPanAnim }],
+                  { useNativeDriver: false }
+                ),
+                onPanResponderRelease: (evt, gestureState) => {
+                  instructionPanAnim.flattenOffset();
+
+                  if (gestureState.dx > 80) {
+                    // Swipe right
+                    setMinimizedSide('right');
+                    setIsInstructionMinimized(true);
+                    Animated.spring(instructionPanAnim, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                    }).start();
+                  } else if (gestureState.dx < -80) {
+                    // Swipe left
+                    setMinimizedSide('left');
+                    setIsInstructionMinimized(true);
+                    Animated.spring(instructionPanAnim, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                    }).start();
+                  } else {
+                    // Snap back
+                    Animated.spring(instructionPanAnim, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                    }).start();
+                  }
+                },
+              }).panHandlers}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  if (isInstructionMinimized) {
+                    setIsInstructionMinimized(false);
+                    Animated.spring(instructionPanAnim, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                    }).start();
+                  }
+                }}
+                activeOpacity={isInstructionMinimized ? 0.8 : 1}
+              >
+                {isInstructionMinimized ? (
+                  <Text style={[
+                    styles.tabScore,
+                    { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
+                  ]}>
+                    {aiFeedback?.score}
+                  </Text>
+                ) : (
+                  <>
+                    <View style={styles.instructionHeader}>
+                      <View style={styles.scoreContainer}>
+                        <Text style={styles.scoreLabel}>Score</Text>
+                        <Text style={[
+                          styles.scoreValue,
+                          { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
+                        ]}>
+                          {aiFeedback?.score}
+                        </Text>
                       </View>
 
-                      <Text style={styles.instructionText}>
-                        {currentInstruction.text}
-                      </Text>
+                    </View>
 
-                      {aiFeedback?.perfectShot && (
-                        <View style={styles.perfectShotBadge}>
-                          <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            )}
+                    <Text style={styles.instructionText}>
+                      {currentInstruction.text}
+                    </Text>
 
-            {/* Manual Feedback Button */}
-            <TouchableOpacity
-              style={styles.feedbackButton}
-              onPress={analyzeScene}
-              disabled={isAnalyzing}
+                    {aiFeedback?.perfectShot && (
+                      <View style={styles.perfectShotBadge}>
+                        <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          )}
+
+          {/* Manual Feedback Button */}
+          <TouchableOpacity
+            style={styles.feedbackButton}
+            onPress={analyzeScene}
+            disabled={isAnalyzing}
+          >
+            <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
+            <Text style={styles.feedbackButtonText}>
+              {isAnalyzing ? "Analyzing..." : "Get Feedback"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Photo Thumbnail Preview */}
+          {showThumbnail && lastPhotoUri && (
+            <Animated.View
+              style={[
+                styles.thumbnailPreview,
+                {
+                  opacity: thumbnailAnim,
+                  transform: [{
+                    scale: thumbnailAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.5, 1],
+                    })
+                  }]
+                }
+              ]}
             >
-              <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
-              <Text style={styles.feedbackButtonText}>
-                {isAnalyzing ? "Analyzing..." : "Get Feedback"}
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowPhotoEditor(true)}>
+                <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
-            {/* Photo Thumbnail Preview */}
-            {showThumbnail && lastPhotoUri && (
-              <Animated.View
-                style={[
-                  styles.thumbnailPreview,
-                  {
-                    opacity: thumbnailAnim,
-                    transform: [{
-                      scale: thumbnailAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.5, 1],
-                      })
-                    }]
-                  }
-                ]}
+          {/* Ghost Opacity Slider */}
+          {showGhostOverlay && (
+            <View style={styles.ghostSliderContainer}>
+              <Text style={styles.ghostSliderLabel}>Overlay Opacity</Text>
+              <Slider
+                style={{ width: 200, height: 40 }}
+                minimumValue={0}
+                maximumValue={1}
+                value={ghostOpacity}
+                onValueChange={setGhostOpacity}
+                minimumTrackTintColor="#4CD964"
+                maximumTrackTintColor="#FFFFFF"
+                thumbTintColor="#4CD964"
+              />
+            </View>
+          )}
+
+          {/* Bottom Controls */}
+          <View style={styles.bottomControls}>
+            <View style={styles.spacer} />
+
+            <View style={styles.shutterContainer}>
+              <TouchableOpacity
+                style={styles.shutterButton}
+                onPress={takeHighResPicture}
               >
-                <TouchableOpacity onPress={() => setShowPhotoEditor(true)}>
-                  <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-
-            {/* Bottom Controls */}
-            <View style={styles.bottomControls}>
-              <View style={styles.spacer} />
-
-              <View style={styles.shutterContainer}>
-                <TouchableOpacity
-                  style={styles.shutterButton}
-                  onPress={takeHighResPicture}
-                >
-                  <View style={styles.shutterInner} />
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-                <Ionicons name="camera-reverse" size={32} color="white" />
+                <View style={styles.shutterInner} />
               </TouchableOpacity>
             </View>
 
-          </SafeAreaView>
-        </CameraView>
+            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+              <Ionicons name="camera-reverse" size={32} color="white" />
+            </TouchableOpacity>
+          </View>
+
+        </SafeAreaView>
       </View>
 
       {/* Context Selector Modal */}
@@ -745,6 +901,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
+  scanningLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 4, // Thicker beam
+    backgroundColor: '#4CD964', // Neon Green
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 15, // Stronger glow
+    zIndex: 5,
+  },
   message: {
     textAlign: 'center',
     paddingBottom: 10,
@@ -776,22 +944,86 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   iconButton: {
-    padding: 8,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  activeIconButton: {
+    backgroundColor: 'rgba(76, 217, 100, 0.2)',
+    borderColor: '#4CD964',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8, // Stronger glow
+    shadowRadius: 12,
   },
   contextBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   contextBadgeText: {
     color: 'white',
     fontSize: 13,
+    fontWeight: '600',
+  },
+  compositionMenu: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    backgroundColor: 'rgba(5, 5, 5, 0.95)', // Deep black
+    borderRadius: 16,
+    padding: 8,
+    zIndex: 1000,
+    minWidth: 140,
+    borderWidth: 1,
+    borderColor: '#4CD964', // Neon Green border
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+  },
+  menuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  menuText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  activeMenuText: {
+    color: '#4CD964',
+    fontWeight: '700',
+    textShadowColor: 'rgba(76, 217, 100, 0.6)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  ghostSliderContainer: {
+    position: 'absolute',
+    bottom: 140,
+    alignSelf: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 10, 20, 0.8)',
+    borderRadius: 24,
+    padding: 16,
+    width: 260,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.3)',
+  },
+  ghostSliderLabel: {
+    color: 'white',
+    fontSize: 12,
+    marginBottom: 5,
     fontWeight: '600',
   },
   referenceIndicator: {
@@ -845,29 +1077,35 @@ const styles = StyleSheet.create({
   },
   instructionCard: {
     position: 'absolute',
-    top: 70,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    top: 100,
+    alignSelf: 'center', // Centered!
+    width: '90%', // Wider
+    maxWidth: 400,
+    backgroundColor: 'rgba(5, 5, 5, 0.9)', // Deep black
     borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.1)',
-    maxWidth: '90%',
-    minWidth: 200,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.3)', // Subtle green border
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
   instructionCardMinimized: {
     position: 'absolute',
-    top: 70,
+    top: 100,
     width: 60,
-    height: 40,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 20,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(10, 20, 30, 0.9)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
   tabContent: {
     flexDirection: 'row',
@@ -943,20 +1181,18 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 140,
     alignSelf: 'center',
-    backgroundColor: '#000000',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 30,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#4CD964',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6, // Strong glow
+    shadowRadius: 15,
   },
   feedbackButtonText: {
     color: 'white',
@@ -997,26 +1233,35 @@ const styles = StyleSheet.create({
     width: 50,
   },
   shutterContainer: {
-    borderWidth: 4,
-    borderColor: 'white',
-    borderRadius: 42,
-    padding: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(76, 217, 100, 0.5)', // Green tint
+    borderRadius: 50,
+    padding: 6,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
   },
   shutterButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'white',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   shutterInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'white',
-    borderWidth: 2,
-    borderColor: 'black',
+    borderWidth: 0,
+    shadowColor: 'white',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
   },
   flipButton: {
     width: 50,

@@ -537,7 +537,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                     style={[styles.tab, editMode === 'ai' && styles.tabActive]}
                     onPress={() => setEditMode('ai')}
                 >
-                    <Ionicons name="sparkles" size={20} color={editMode === 'ai' ? '#007AFF' : '#666'} />
+                    <Ionicons name="sparkles" size={20} color={editMode === 'ai' ? '#4CD964' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'ai' && styles.tabTextActive]}>AI Guide</Text>
                 </TouchableOpacity>
 
@@ -545,21 +545,21 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                     onPress={() => setEditMode('adjust')}
                     style={[styles.tab, editMode === 'adjust' && styles.tabActive]}
                 >
-                    <Ionicons name="options" size={20} color={editMode === 'adjust' ? '#007AFF' : '#666'} />
+                    <Ionicons name="options" size={20} color={editMode === 'adjust' ? '#4CD964' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'adjust' && styles.tabTextActive]}>Adjust</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     onPress={() => setEditMode('filters')}
                     style={[styles.tab, editMode === 'filters' && styles.tabActive]}
                 >
-                    <Ionicons name="color-palette" size={20} color={editMode === 'filters' ? '#007AFF' : '#666'} />
+                    <Ionicons name="color-palette" size={20} color={editMode === 'filters' ? '#4CD964' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'filters' && styles.tabTextActive]}>Filters</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                     onPress={() => setEditMode('crop')}
                     style={[styles.tab, editMode === 'crop' && styles.tabActive]}
                 >
-                    <Ionicons name="crop" size={20} color={editMode === 'crop' ? '#007AFF' : '#666'} />
+                    <Ionicons name="crop" size={20} color={editMode === 'crop' ? '#4CD964' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'crop' && styles.tabTextActive]}>Crop</Text>
                 </TouchableOpacity>
             </View>
@@ -596,17 +596,19 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(10, 10, 20, 0.9)',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     },
     headerButton: {
         padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 20,
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
     },
     imageContainer: {
         flex: 1,
@@ -620,34 +622,43 @@ const styles = StyleSheet.create({
     },
     tabsContainer: {
         flexDirection: 'row',
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(10, 10, 20, 0.9)',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+        paddingVertical: 8,
     },
     tab: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
+        paddingVertical: 8,
+        marginHorizontal: 4,
+        borderRadius: 12,
         gap: 6,
     },
     tabActive: {
-        borderBottomWidth: 2,
-        borderBottomColor: '#007AFF',
+        backgroundColor: 'rgba(76, 217, 100, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(76, 217, 100, 0.3)',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(76, 217, 100, 0.3)',
     },
     tabText: {
-        fontSize: 14,
-        color: '#666',
+        fontSize: 12,
+        color: '#888',
         fontWeight: '500',
     },
     tabTextActive: {
-        color: '#007AFF',
+        color: '#4CD964',
         fontWeight: '600',
+        textShadowColor: 'rgba(76, 217, 100, 0.5)',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 4,
     },
     contentContainer: {
-        height: 300,
-        backgroundColor: '#f8f8f8',
+        height: 320,
+        backgroundColor: '#050505',
     },
     modeContainer: {
         flex: 1,
@@ -674,24 +685,26 @@ const styles = StyleSheet.create({
     aiTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#333',
+        color: 'white',
     },
     aiReasoning: {
         fontSize: 14,
-        color: '#666',
+        color: '#ccc',
         lineHeight: 20,
         marginBottom: 20,
     },
     adjustmentsCard: {
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         padding: 16,
         borderRadius: 12,
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     cardTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
         marginBottom: 12,
     },
     adjustmentItem: {
@@ -699,22 +712,24 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     },
     adjustmentKey: {
         fontSize: 14,
-        color: '#666',
+        color: '#ccc',
     },
     adjustmentValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#007AFF',
+        color: '#4CD964',
     },
     suggestionsCard: {
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         padding: 16,
         borderRadius: 12,
         marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     suggestionItem: {
         flexDirection: 'row',
@@ -725,20 +740,22 @@ const styles = StyleSheet.create({
     suggestionText: {
         flex: 1,
         fontSize: 14,
-        color: '#666',
+        color: '#ccc',
         lineHeight: 20,
     },
     noteCard: {
         flexDirection: 'row',
-        backgroundColor: '#FFF9E6',
+        backgroundColor: 'rgba(255, 204, 0, 0.1)',
         padding: 12,
         borderRadius: 8,
         gap: 8,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 204, 0, 0.3)',
     },
     noteText: {
         flex: 1,
         fontSize: 12,
-        color: '#666',
+        color: '#FFCC00',
         lineHeight: 18,
     },
     errorContainer: {
@@ -771,18 +788,18 @@ const styles = StyleSheet.create({
     comingSoonText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
         marginTop: 16,
     },
     comingSoonSubtext: {
         fontSize: 14,
-        color: '#666',
+        color: '#ccc',
         textAlign: 'center',
         marginTop: 8,
     },
     comingSoonNote: {
         fontSize: 12,
-        color: '#999',
+        color: '#666',
         textAlign: 'center',
         marginTop: 16,
     },
@@ -792,7 +809,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
         marginBottom: 12,
         marginTop: 8,
     },

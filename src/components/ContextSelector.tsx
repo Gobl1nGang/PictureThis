@@ -44,8 +44,8 @@ export default function ContextSelector({ visible, onClose }: ContextSelectorPro
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
                     <Text style={styles.title}>Photo Context</Text>
-                    <TouchableOpacity onPress={onClose}>
-                        <Ionicons name="close" size={28} color="#333" />
+                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                        <Ionicons name="close" size={24} color="white" />
                     </TouchableOpacity>
                 </View>
 
@@ -136,34 +136,43 @@ export default function ContextSelector({ visible, onClose }: ContextSelectorPro
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f8f8',
+        backgroundColor: '#050505',
     },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: 20,
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(10, 10, 20, 0.9)',
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     },
     title: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#333',
+        color: 'white',
+    },
+    closeButton: {
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 20,
     },
     content: {
         flex: 1,
     },
     section: {
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
         marginTop: 20,
         padding: 20,
+        marginHorizontal: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
         marginBottom: 15,
     },
     optionsGrid: {
@@ -175,37 +184,46 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderRadius: 20,
-        backgroundColor: '#f0f0f0',
-        borderWidth: 2,
-        borderColor: 'transparent',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.1)',
     },
     optionCardSelected: {
-        backgroundColor: '#007AFF',
-        borderColor: '#007AFF',
+        backgroundColor: 'rgba(76, 217, 100, 0.15)',
+        borderColor: '#4CD964',
+        shadowColor: '#4CD964',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.4,
+        shadowRadius: 8,
     },
     optionText: {
         fontSize: 14,
         fontWeight: '500',
-        color: '#333',
+        color: '#ccc',
     },
     optionTextSelected: {
-        color: 'white',
+        color: '#4CD964',
+        fontWeight: '600',
     },
     footer: {
         padding: 20,
-        backgroundColor: 'white',
+        backgroundColor: 'rgba(10, 10, 20, 0.9)',
         borderTopWidth: 1,
-        borderTopColor: '#eee',
+        borderTopColor: 'rgba(255, 255, 255, 0.1)',
     },
     saveButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: '#4CD964',
         paddingVertical: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         alignItems: 'center',
+        shadowColor: '#4CD964',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 10,
     },
     saveButtonText: {
-        color: 'white',
+        color: '#000',
         fontSize: 18,
-        fontWeight: '600',
+        fontWeight: 'bold',
     },
 });

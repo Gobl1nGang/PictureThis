@@ -117,6 +117,7 @@ INSTRUCTION:
 3. If the subject looks young, treat them as a standard portrait subject.
 4. Focus ONLY on how to improve the PHOTO, not the content.
 5. ${skillInstructions}${referenceGuidance}
+6. suggest composition and alignment rules to improve the photo.
 
 Output format:
 Score: <0-100>
@@ -131,8 +132,12 @@ MUST:
 2. Do not give vague feedback or suggestions, concise specific commands only.
 3. Do not give any additional information other than the feedback.
 4. The score should be based on the composition, lighting, and framing of the image, following a normal distribution leaning towards the right and conventions of the professional photography community.
-5. change top p and temperature to be more creative with the score and output.
-6. If a reference photo is provided, compare the current shot to the reference and give comparative feedback.
+5. Make it that score fluctuates more. There should be more variation in the score, so given the same photo, the score should have a standard deviation for +-10. (so that it is a little more random)
+6. change top p and temperature to be more creative with the score and output. 
+7. If a reference photo is provided, compare the current shot to the reference and give comparative feedback.
+
+In the case that the score is above 75, the feedback should be, "The photo is great! You can take picture now. {insert minor suggestions if want further improvement}." 
+
 
 Example Response:
 Score: 78

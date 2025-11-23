@@ -5,6 +5,7 @@ import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
+import PhotoEditor from './PhotoEditor';
 
 
 const { width } = Dimensions.get('window');
@@ -25,6 +26,8 @@ export default function PhotosScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editorImageUri, setEditorImageUri] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -209,6 +212,28 @@ export default function PhotosScreen() {
     }
   };
 
+  const handleEditPhoto = async (photo: MediaLibrary.Asset) => {
+    try {
+      const resolvedUri = await resolveAssetUri(photo);
+      setEditorImageUri(resolvedUri);
+      setEditorVisible(true);
+      closePhotoModal();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load photo for editing');
+    }
+  };
+
+  const handleEditorClose = () => {
+    setEditorVisible(false);
+    setEditorImageUri(null);
+  };
+
+  const handleEditorSave = (editedUri: string) => {
+    // Refresh photos to show the newly saved edit
+    loadPhotos();
+    handleEditorClose();
+  };
+
 
 
   const addPhotosFromLibrary = async () => {
@@ -245,7 +270,15 @@ export default function PhotosScreen() {
   };
 
 
-
+  if (editorVisible && editorImageUri) {
+    return (
+      <PhotoEditor
+        imageUri={editorImageUri}
+        onClose={handleEditorClose}
+        onSave={handleEditorSave}
+      />
+    );
+  }
   if (!permission) {
     return (
       <View style={styles.container}>
@@ -454,7 +487,17 @@ export default function PhotosScreen() {
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
 
-                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                <View style={styles.modalControls}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => handleEditPhoto(selectedPhoto)}
+                  >
+                    <Ionicons name="create-outline" size={24} color="white" />
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+
+                  <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                </View>
 
                 <PhotoModalContent photo={selectedPhoto} />
               </>
@@ -475,40 +518,47 @@ export default function PhotosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#050505',
     justifyContent: 'center',
     alignItems: 'center',
   },
   screenContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#050505',
   },
   header: {
     paddingTop: 25,
     paddingHorizontal: 20,
     paddingBottom: 35,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(10, 10, 20, 0.95)',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: 'rgba(76, 217, 100, 0.3)',
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
   headerText: {
     fontSize: 32,
     fontWeight: '600',
-    color: '#000000',
+    color: 'white',
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(76, 217, 100, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
   countText: {
     fontSize: 14,
-    color: '#a69580',
+    color: '#4CD964',
     marginTop: 4,
     fontFamily: 'Snell Roundhand',
     letterSpacing: 0.5,
   },
   text: {
     fontSize: 18,
-    color: '#000000',
+    color: 'white',
     textAlign: 'center',
     marginBottom: 20,
     letterSpacing: 1,
@@ -532,20 +582,20 @@ const styles = StyleSheet.create({
   },
   photoContainer: {
     margin: 4,
-    borderRadius: 30,
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    borderRadius: 16,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   photo: {
     width: imageSize - 8,
     height: imageSize - 8,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 30,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   loadingFooter: {
     padding: 20,
@@ -572,20 +622,20 @@ const styles = StyleSheet.create({
   addButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#22c55e',
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    borderColor: '#4CD964',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   addButtonText: {
-    color: '#22c55e',
+    color: '#4CD964',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.5,
     textAlign: 'center',
     lineHeight: 18,
@@ -593,20 +643,20 @@ const styles = StyleSheet.create({
   selectButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#22c55e',
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
+    borderColor: '#4CD964',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   selectButtonText: {
-    color: '#22c55e',
+    color: '#4CD964',
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     letterSpacing: 0.5,
   },
   modernButton: {
@@ -629,7 +679,7 @@ const styles = StyleSheet.create({
   selectedCountText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000000',
+    color: 'white',
   },
   deleteText: {
     color: '#FF3B30',
@@ -691,6 +741,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalControls: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 
   modalImage: {

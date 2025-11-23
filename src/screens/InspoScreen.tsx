@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  Image, 
-  Dimensions, 
-  TouchableOpacity, 
-  TextInput, 
-  ActivityIndicator, 
-  Modal, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Image,
+  Dimensions,
+  TouchableOpacity,
+  TextInput,
+  ActivityIndicator,
+  Modal,
   Alert,
   SafeAreaView,
-  Animated 
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
@@ -99,7 +99,7 @@ export default function InspoScreen() {
     setLoading(true);
     setError(null);
     setIsSearchMode(false);
-    
+
     try {
       const response = await fetch(
         `${PEXELS_BASE_URL}/curated?per_page=30`,
@@ -135,12 +135,12 @@ export default function InspoScreen() {
     setLoading(true);
     setError(null);
     setIsSearchMode(true);
-    
+
     try {
       let allPhotos: PexelsPhoto[] = [];
       let page = 1;
       const seenPhotographers = new Set<string>();
-      
+
       // Fetch multiple pages until we have 30 unique photographers
       while (allPhotos.length < 30 && page <= 5) {
         const response = await fetch(
@@ -157,9 +157,9 @@ export default function InspoScreen() {
         }
 
         const data: PexelsResponse = await response.json();
-        
+
         if (data.photos.length === 0) break;
-        
+
         // Add photos from unique photographers
         for (const photo of data.photos) {
           if (!seenPhotographers.has(photo.photographer) && allPhotos.length < 30) {
@@ -167,10 +167,10 @@ export default function InspoScreen() {
             allPhotos.push(photo);
           }
         }
-        
+
         page++;
       }
-      
+
       if (allPhotos.length === 0) {
         setError('No photos found for this search term');
         setPhotos([]);
@@ -273,12 +273,12 @@ export default function InspoScreen() {
     if (isSearchMode) {
       // Grid layout for search results
       return (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.photoItem}
           onPress={() => openPhotoModal(item)}
           activeOpacity={0.8}
         >
-          <Image 
+          <Image
             source={{ uri: item.src.medium }}
             style={styles.photoImage}
             resizeMode="cover"
@@ -289,26 +289,26 @@ export default function InspoScreen() {
             </Text>
           </View>
           <View style={styles.buttonContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.likeButton}
               onPress={() => toggleLike(item.id)}
               activeOpacity={0.7}
             >
-              <Ionicons 
-                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"} 
-                size={20} 
-                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              <Ionicons
+                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"}
+                size={20}
+                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"}
               />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.dislikeButton}
               onPress={() => toggleDislike(item.id)}
               activeOpacity={0.7}
             >
-              <Ionicons 
-                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"} 
-                size={20} 
-                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              <Ionicons
+                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"}
+                size={20}
+                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"}
               />
             </TouchableOpacity>
           </View>
@@ -317,12 +317,12 @@ export default function InspoScreen() {
     } else {
       // Instagram-style full-width layout for curated photos
       return (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.instagramPhotoItem}
           onPress={() => openPhotoModal(item)}
           activeOpacity={0.9}
         >
-          <Image 
+          <Image
             source={{ uri: item.src.large }}
             style={styles.instagramPhotoImage}
             resizeMode="cover"
@@ -336,26 +336,26 @@ export default function InspoScreen() {
             </View>
           </View>
           <View style={styles.instagramButtonContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.instagramLikeButton}
               onPress={() => toggleLike(item.id)}
               activeOpacity={0.7}
             >
-              <Ionicons 
-                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"} 
-                size={24} 
-                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              <Ionicons
+                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"}
+                size={24}
+                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"}
               />
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.instagramDislikeButton}
               onPress={() => toggleDislike(item.id)}
               activeOpacity={0.7}
             >
-              <Ionicons 
-                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"} 
-                size={24} 
-                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              <Ionicons
+                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"}
+                size={24}
+                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"}
               />
             </TouchableOpacity>
           </View>
@@ -399,12 +399,14 @@ export default function InspoScreen() {
         }]}>
           <Text style={styles.headerTitle}>Inspiration</Text>
         </Animated.View>
-        
+
         <Animated.View style={[styles.searchContainer, {
-          transform: [{ translateY: slideAnim.interpolate({
-            inputRange: [0, 30],
-            outputRange: [0, 20]
-          }) }]
+          transform: [{
+            translateY: slideAnim.interpolate({
+              inputRange: [0, 30],
+              outputRange: [0, 20]
+            })
+          }]
         }]}>
           <TextInput
             style={styles.searchInput}
@@ -415,7 +417,7 @@ export default function InspoScreen() {
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.searchButton}
             onPress={handleSearch}
             disabled={loading}
@@ -462,7 +464,7 @@ export default function InspoScreen() {
         onRequestClose={closePhotoModal}
       >
         <View style={styles.modalContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.modalBackground}
             onPress={closePhotoModal}
             activeOpacity={1}
@@ -472,30 +474,30 @@ export default function InspoScreen() {
                 <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={styles.saveButton} 
+
+                <TouchableOpacity
+                  style={styles.saveButton}
                   onPress={() => savePhoto(selectedPhoto)}
                 >
                   <Ionicons name="download" size={24} color="white" />
                 </TouchableOpacity>
-                
+
                 <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
-                
-                <Image 
+
+                <Image
                   source={{ uri: selectedPhoto.src.large }}
                   style={styles.modalImage}
                   resizeMode="contain"
                 />
-                
+
 
               </>
             )}
           </TouchableOpacity>
         </View>
       </Modal>
-      
-      <AnalysisModal 
+
+      <AnalysisModal
         visible={analysisModalVisible}
         onClose={() => setAnalysisModalVisible(false)}
         imageUri={analysisImageUri}
@@ -507,22 +509,31 @@ export default function InspoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#050505',
   },
   header: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: 'rgba(10, 10, 20, 0.95)',
     paddingTop: 25,
     paddingHorizontal: 20,
     paddingBottom: 35,
     borderBottomLeftRadius: 40,
     borderBottomRightRadius: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(76, 217, 100, 0.3)',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
   headerTitle: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#000000',
+    color: 'white',
     marginBottom: 15,
     paddingLeft: 10,
+    textShadowColor: 'rgba(76, 217, 100, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -532,34 +543,30 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 52,
-    backgroundColor: 'rgba(240, 240, 240, 0.95)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 35,
     paddingHorizontal: 28,
     fontSize: 16,
-    color: '#333',
-    shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-    borderWidth: 0,
+    color: 'white',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   searchButton: {
     width: 52,
     height: 52,
-    backgroundColor: '#22c55e',
+    backgroundColor: '#4CD964',
     borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
     elevation: 10,
   },
   content: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#050505',
   },
   loadingContainer: {
     flex: 1,
@@ -580,7 +587,7 @@ const styles = StyleSheet.create({
   emptyStateTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: 'white',
     marginTop: 20,
     textAlign: 'center',
   },
@@ -626,12 +633,14 @@ const styles = StyleSheet.create({
     margin: 4,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
-    shadowColor: '#22c55e',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    shadowColor: '#4CD964',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   photoImage: {
     width: '100%',
@@ -662,7 +671,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   instagramPhotoImage: {
     width: '100%',
