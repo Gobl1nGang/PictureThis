@@ -349,7 +349,7 @@ export default function PhotosScreen() {
   return (
     <SafeAreaView style={styles.screenContainer}>
 
-      
+
       <Animated.View style={[styles.header, {
         opacity: fadeAnim,
         transform: [{ translateY: slideAnim }]
@@ -381,18 +381,22 @@ export default function PhotosScreen() {
             transform: [{ scale: scaleAnim }]
           }]}>
             <Animated.View style={{
-              transform: [{ translateX: slideAnim.interpolate({
-                inputRange: [0, 50],
-                outputRange: [0, -30]
-              }) }]
+              transform: [{
+                translateX: slideAnim.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, -30]
+                })
+              }]
             }}>
               <Text style={styles.headerText}>Photos</Text>
             </Animated.View>
             <Animated.View style={[styles.headerButtons, {
-              transform: [{ translateX: slideAnim.interpolate({
-                inputRange: [0, 50],
-                outputRange: [0, 30]
-              }) }]
+              transform: [{
+                translateX: slideAnim.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, 30]
+                })
+              }]
             }]}>
               <TouchableOpacity
                 style={styles.addButton}
@@ -568,13 +572,13 @@ const styles = StyleSheet.create({
   addButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    backgroundColor: 'transparent',
     borderRadius: 20,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#22c55e',
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -589,13 +593,13 @@ const styles = StyleSheet.create({
   selectButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    backgroundColor: 'transparent',
     borderRadius: 20,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: '#22c55e',
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },

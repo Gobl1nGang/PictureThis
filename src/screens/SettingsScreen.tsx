@@ -11,7 +11,7 @@ export default function SettingsScreen() {
   const [gridLines, setGridLines] = useState('Rule of Thirds');
   const [autoSave, setAutoSave] = useState(true);
   const [photoQuality, setPhotoQuality] = useState('High');
-  
+
   // Advanced Settings State
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [analysisFocus, setAnalysisFocus] = useState('Both');
@@ -21,7 +21,7 @@ export default function SettingsScreen() {
   const [soundEffects, setSoundEffects] = useState(false);
   const [photoAnalysis, setPhotoAnalysis] = useState('Local only');
   const [usageAnalytics, setUsageAnalytics] = useState(false);
-  
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -65,7 +65,7 @@ export default function SettingsScreen() {
   );
 
   const DropdownButton = ({ value, options, onSelect }: { value: string; options: string[]; onSelect: (value: string) => void }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.dropdown}
       onPress={() => {
         Alert.alert(
@@ -79,7 +79,7 @@ export default function SettingsScreen() {
       }}
     >
       <Text style={styles.dropdownText}>{value}</Text>
-      <Ionicons name="chevron-down" size={16} color="#8B7355" />
+      <Ionicons name="chevron-down" size={16} color="#000000" />
     </TouchableOpacity>
   );
 
@@ -89,9 +89,11 @@ export default function SettingsScreen() {
       'This will clear all cached data. Continue?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Clear', style: 'destructive', onPress: () => {
-          Alert.alert('Success', 'Cache cleared successfully');
-        }}
+        {
+          text: 'Clear', style: 'destructive', onPress: () => {
+            Alert.alert('Success', 'Cache cleared successfully');
+          }
+        }
       ]
     );
   };
@@ -110,15 +112,17 @@ export default function SettingsScreen() {
       {/* Basic Settings */}
       <Animated.View style={[styles.section, {
         opacity: fadeAnim,
-        transform: [{ translateY: slideAnim.interpolate({
-          inputRange: [0, 50],
-          outputRange: [0, 30]
-        }) }]
+        transform: [{
+          translateY: slideAnim.interpolate({
+            inputRange: [0, 50],
+            outputRange: [0, 30]
+          })
+        }]
       }]}>
         <Text style={styles.sectionTitle}>Basic Settings</Text>
-        
+
         <SettingRow title="AI Feedback Frequency">
-          <DropdownButton 
+          <DropdownButton
             value={feedbackFrequency}
             options={['1s', '2s', '3s']}
             onSelect={setFeedbackFrequency}
@@ -126,7 +130,7 @@ export default function SettingsScreen() {
         </SettingRow>
 
         <SettingRow title="Coaching Style">
-          <DropdownButton 
+          <DropdownButton
             value={coachingStyle}
             options={['Beginner', 'Intermediate', 'Advanced']}
             onSelect={setCoachingStyle}
@@ -134,7 +138,7 @@ export default function SettingsScreen() {
         </SettingRow>
 
         <SettingRow title="Grid Lines">
-          <DropdownButton 
+          <DropdownButton
             value={gridLines}
             options={['Rule of Thirds', 'Off']}
             onSelect={setGridLines}
@@ -142,15 +146,15 @@ export default function SettingsScreen() {
         </SettingRow>
 
         <SettingRow title="Auto-Save Photos">
-          <Switch 
+          <Switch
             value={autoSave}
             onValueChange={setAutoSave}
-            trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
+            trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
           />
         </SettingRow>
 
         <SettingRow title="Photo Quality">
-          <DropdownButton 
+          <DropdownButton
             value={photoQuality}
             options={['High', 'Medium', 'Low']}
             onSelect={setPhotoQuality}
@@ -161,27 +165,31 @@ export default function SettingsScreen() {
       {/* Advanced Settings Toggle */}
       <Animated.View style={{
         opacity: fadeAnim,
-        transform: [{ translateY: slideAnim.interpolate({
-          inputRange: [0, 50],
-          outputRange: [0, 40]
-        }) }]
+        transform: [{
+          translateY: slideAnim.interpolate({
+            inputRange: [0, 50],
+            outputRange: [0, 40]
+          })
+        }]
       }}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.advancedToggle}
           onPress={toggleAdvanced}
           activeOpacity={0.8}
         >
           <Text style={styles.advancedToggleText}>Advanced Settings</Text>
           <Animated.View style={{
-            transform: [{ rotate: advancedAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: ['0deg', '180deg']
-            }) }]
+            transform: [{
+              rotate: advancedAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '180deg']
+              })
+            }]
           }}>
-            <Ionicons 
-              name="chevron-down" 
-              size={20} 
-              color="#B8860B" 
+            <Ionicons
+              name="chevron-down"
+              size={20}
+              color="#000000"
             />
           </Animated.View>
         </TouchableOpacity>
@@ -199,7 +207,7 @@ export default function SettingsScreen() {
           }]
         }]}>
           <SettingRow title="Analysis Focus">
-            <DropdownButton 
+            <DropdownButton
               value={analysisFocus}
               options={['Composition', 'Lighting', 'Both']}
               onSelect={setAnalysisFocus}
@@ -207,7 +215,7 @@ export default function SettingsScreen() {
           </SettingRow>
 
           <SettingRow title="Pro Score Sensitivity">
-            <DropdownButton 
+            <DropdownButton
               value={scoreSensitivity}
               options={['Strict', 'Normal', 'Lenient']}
               onSelect={setScoreSensitivity}
@@ -215,7 +223,7 @@ export default function SettingsScreen() {
           </SettingRow>
 
           <SettingRow title="Storage Location">
-            <DropdownButton 
+            <DropdownButton
               value={storageLocation}
               options={['Camera Roll', 'App Folder']}
               onSelect={setStorageLocation}
@@ -223,23 +231,23 @@ export default function SettingsScreen() {
           </SettingRow>
 
           <SettingRow title="Haptic Feedback">
-            <Switch 
+            <Switch
               value={hapticFeedback}
               onValueChange={setHapticFeedback}
-              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
+              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
             />
           </SettingRow>
 
           <SettingRow title="Sound Effects">
-            <Switch 
+            <Switch
               value={soundEffects}
               onValueChange={setSoundEffects}
-              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
+              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
             />
           </SettingRow>
 
           <SettingRow title="Photo Analysis">
-            <DropdownButton 
+            <DropdownButton
               value={photoAnalysis}
               options={['Local only', 'Cloud-enhanced']}
               onSelect={setPhotoAnalysis}
@@ -247,10 +255,10 @@ export default function SettingsScreen() {
           </SettingRow>
 
           <SettingRow title="Usage Analytics">
-            <Switch 
+            <Switch
               value={usageAnalytics}
               onValueChange={setUsageAnalytics}
-              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
+              trackColor={{ false: '#e5e7eb', true: '#22c55e' }}
             />
           </SettingRow>
 
@@ -307,11 +315,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#8B7355',
+    color: '#000000',
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E8DCC0',
+    borderBottomColor: '#e5e7eb',
     marginBottom: 10,
     letterSpacing: 0.3,
   },
@@ -322,33 +330,34 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#F2EDD7',
+    borderBottomColor: '#e5e7eb',
   },
   settingTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6B5B47',
+    color: '#333333',
     flex: 1,
     letterSpacing: 0.2,
   },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#22c55e',
+    backgroundColor: 'transparent',
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 25,
     minWidth: 130,
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: '#22c55e',
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 8,
   },
   dropdownText: {
     fontSize: 14,
-    color: '#6B5B47',
+    color: '#333333',
     marginRight: 8,
   },
   advancedToggle: {
@@ -372,7 +381,7 @@ const styles = StyleSheet.create({
   advancedToggleText: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#B8860B',
+    color: '#000000',
     letterSpacing: 0.3,
   },
   buttonRow: {
@@ -380,16 +389,16 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
   },
   clearButton: {
-    backgroundColor: '#8b7355',
+    backgroundColor: '#000000',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#6b5b47',
+    borderColor: '#000000',
   },
   clearButtonText: {
-    color: '#FFFEF7',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0.2,
@@ -401,7 +410,7 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 13,
     fontWeight: '400',
-    color: '#A0916B',
+    color: '#9ca3af',
     letterSpacing: 0.5,
   },
 });
