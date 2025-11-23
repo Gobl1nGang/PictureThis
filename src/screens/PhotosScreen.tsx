@@ -5,6 +5,7 @@ import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
+import PhotoEditor from './PhotoEditor';
 
 const { width } = Dimensions.get('window');
 const numColumns = 3;
@@ -24,6 +25,10 @@ export default function PhotosScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
+
+  // Editor state
+  const [editorVisible, setEditorVisible] = useState(false);
+  const [editorImageUri, setEditorImageUri] = useState<string | null>(null);
 
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -184,6 +189,28 @@ export default function PhotosScreen() {
     }
   };
 
+  const handleEditPhoto = async (photo: MediaLibrary.Asset) => {
+    try {
+      const resolvedUri = await resolveAssetUri(photo);
+      setEditorImageUri(resolvedUri);
+      setEditorVisible(true);
+      closePhotoModal();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load photo for editing');
+    }
+  };
+
+  const handleEditorClose = () => {
+    setEditorVisible(false);
+    setEditorImageUri(null);
+  };
+
+  const handleEditorSave = (editedUri: string) => {
+    // Refresh photos to show the newly saved edit
+    loadPhotos();
+    handleEditorClose();
+  };
+
   const addPhotosFromLibrary = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -216,6 +243,16 @@ export default function PhotosScreen() {
       console.error('Error adding photos:', error);
     }
   };
+
+  if (editorVisible && editorImageUri) {
+    return (
+      <PhotoEditor
+        imageUri={editorImageUri}
+        onClose={handleEditorClose}
+        onSave={handleEditorSave}
+      />
+    );
+  }
 
   if (!permission) {
     return (
@@ -327,7 +364,7 @@ export default function PhotosScreen() {
       <View style={styles.bottomDecoration}>
         <Text style={styles.decorativeText}>✦ ✧ ✦</Text>
       </View>
-      
+
       <View style={styles.header}>
         {selectionMode ? (
           <View style={styles.selectionHeader}>
@@ -406,7 +443,17 @@ export default function PhotosScreen() {
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
 
-                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                <View style={styles.modalControls}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => handleEditPhoto(selectedPhoto)}
+                  >
+                    <Ionicons name="create-outline" size={24} color="white" />
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+
+                  <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                </View>
 
                 <PhotoModalContent photo={selectedPhoto} />
               </>
@@ -630,7 +677,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
+  modalControls: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  editButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   modalImage: {
     width: width - 40,
     height: '80%',
