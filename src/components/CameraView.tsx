@@ -12,8 +12,9 @@ import { useUserProfile } from '../contexts/UserProfileContext';
 import { usePhotoContext } from '../contexts/PhotoContextContext';
 import InstructionEngine from '../features/camera/InstructionEngine';
 import ContextSelector from './ContextSelector';
+import PhotoEditor from '../screens/PhotoEditor';
 import { Ionicons } from '@expo/vector-icons';
-import { AIFeedback, AIInstruction } from '../types';
+import { AIFeedback, AIInstruction } from '../types/index';
 
 const { width, height } = Dimensions.get('window');
 
@@ -45,6 +46,7 @@ export default function AppCamera() {
   // UI State
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showContextSelector, setShowContextSelector] = useState(false);
+  const [showPhotoEditor, setShowPhotoEditor] = useState(false);
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
   const thumbnailAnim = useRef(new Animated.Value(0)).current;
@@ -371,7 +373,7 @@ export default function AppCamera() {
                 }
               ]}
             >
-              <TouchableOpacity onPress={() => {/* TODO: Open editor */ }}>
+              <TouchableOpacity onPress={() => setShowPhotoEditor(true)}>
                 <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
               </TouchableOpacity>
             </Animated.View>
@@ -476,6 +478,25 @@ export default function AppCamera() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Photo Editor Modal */}
+      {showPhotoEditor && lastPhotoUri && (
+        <Modal
+          visible={showPhotoEditor}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setShowPhotoEditor(false)}
+        >
+          <PhotoEditor
+            imageUri={lastPhotoUri}
+            onClose={() => setShowPhotoEditor(false)}
+            onSave={(editedUri) => {
+              setLastPhotoUri(editedUri);
+              setShowPhotoEditor(false);
+            }}
+          />
+        </Modal>
+      )}
     </View>
   );
 }

@@ -179,7 +179,8 @@ Timestamp: ${Date.now()}`;
             ],
             inferenceConfig: {
                 maxTokens: 150,
-                temperature: 0.5,
+                temperature: 0.7,
+                topP: 0.9,
             },
         });
 
