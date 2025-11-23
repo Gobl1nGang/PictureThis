@@ -38,7 +38,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
           <View style={styles.header}>
             <Text style={styles.title}>Photo Analysis</Text>
             <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color="#8b7355" />
+              <Ionicons name="close" size={24} color="#000000" />
             </TouchableOpacity>
           </View>
 
@@ -53,7 +53,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
 
           {loading && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#bba06b" />
+              <ActivityIndicator size="large" color="#22c55e" />
               <Text style={styles.loadingText}>Analyzing photo...</Text>
             </View>
           )}
@@ -92,9 +92,9 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
                 <Text style={styles.label}>Summary</Text>
                 <Text style={styles.value}>{analysis.summary}</Text>
               </View>
-              
-              <TouchableOpacity 
-                style={styles.setReferenceButton} 
+
+              <TouchableOpacity
+                style={styles.setReferenceButton}
                 onPress={() => {
                   global.referenceImageUri = imageUri;
                   onClose();
@@ -113,11 +113,11 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(139, 115, 85, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'flex-end',
   },
   content: {
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#ffffff',
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     maxHeight: '80%',
@@ -129,13 +129,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#d3c6a2',
+    borderBottomColor: '#e5e7eb',
   },
   title: {
     fontSize: 24,
     fontWeight: '300',
-    fontFamily: 'Palatino',
-    color: '#8b7355',
+    color: '#000000',
     letterSpacing: 1,
   },
   startContainer: {
@@ -144,28 +143,28 @@ const styles = StyleSheet.create({
   },
   startText: {
     fontSize: 16,
-    color: '#8b7355',
+    color: '#666666',
     textAlign: 'center',
     marginBottom: 20,
-    fontFamily: 'Palatino',
     lineHeight: 22,
   },
   analyzeButton: {
-    backgroundColor: '#bba06b',
+    backgroundColor: 'transparent',
     paddingHorizontal: 30,
     paddingVertical: 12,
     borderRadius: 20,
-    shadowColor: '#8b7355',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+    shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
   analyzeButtonText: {
-    color: '#5a4f3a',
+    color: '#22c55e',
     fontSize: 16,
     fontWeight: '300',
-    fontFamily: 'Palatino',
     letterSpacing: 0.5,
   },
   loadingContainer: {
@@ -175,49 +174,47 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#8b7355',
-    fontFamily: 'Palatino',
+    color: '#666666',
   },
   analysisContainer: {
     padding: 20,
   },
   analysisItem: {
     marginBottom: 16,
-    backgroundColor: '#d3c6a2',
+    backgroundColor: '#f3f4f6',
     padding: 12,
     borderRadius: 15,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8b7355',
+    color: '#333333',
     marginBottom: 4,
-    fontFamily: 'Palatino',
   },
   value: {
     fontSize: 16,
-    color: '#5a4f3a',
+    color: '#000000',
     lineHeight: 22,
-    fontFamily: 'Palatino',
   },
   setReferenceButton: {
-    backgroundColor: '#bba06b',
+    backgroundColor: 'transparent',
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 20,
     alignSelf: 'center',
     marginTop: 20,
-    shadowColor: '#8b7355',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+    shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   setReferenceButtonText: {
-    color: '#5a4f3a',
+    color: '#22c55e',
     fontSize: 16,
     fontWeight: '300',
-    fontFamily: 'Palatino',
     letterSpacing: 0.5,
   },
 });

@@ -9,12 +9,12 @@ interface Props {
 
 export const SetReferenceButton: React.FC<Props> = ({ onPress, disabled = false }) => {
   return (
-    <TouchableOpacity 
-      style={[styles.button, disabled && styles.disabled]} 
+    <TouchableOpacity
+      style={[styles.button, disabled && styles.disabled]}
       onPress={onPress}
       disabled={disabled}
     >
-      <Ionicons name="camera" size={20} color="white" />
+      <Ionicons name="camera" size={20} color="#22c55e" />
       <Text style={styles.text}>Set Reference</Text>
     </TouchableOpacity>
   );
@@ -30,16 +30,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(187,160,107,0.9)',
+    backgroundColor: 'transparent',
     paddingVertical: 16,
     borderRadius: 12,
     gap: 8,
+    borderWidth: 1,
+    borderColor: '#22c55e',
   },
   disabled: {
-    backgroundColor: 'rgba(128,128,128,0.5)',
+    backgroundColor: 'rgba(128,128,128,0.1)',
+    borderColor: 'gray',
   },
   text: {
-    color: 'white',
+    color: '#22c55e',
     fontSize: 18,
     fontWeight: '600',
   },
