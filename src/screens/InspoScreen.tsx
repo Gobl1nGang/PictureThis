@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -15,7 +15,6 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
 import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
@@ -64,16 +63,56 @@ export default function InspoScreen() {
   const [error, setError] = useState<string | null>(null);
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [likedPhotos, setLikedPhotos] = useState<Set<number>>(new Set());
+  const [dislikedPhotos, setDislikedPhotos] = useState<Set<number>>(new Set());
+
+  // Load default curated photos on component mount
+  useEffect(() => {
+    loadCuratedPhotos();
+  }, []);
+
+  // Load curated photos (Instagram-style feed)
+  const loadCuratedPhotos = async () => {
+    setLoading(true);
+    setError(null);
+    setIsSearchMode(false);
+    
+    try {
+      const response = await fetch(
+        `${PEXELS_BASE_URL}/curated?per_page=30`,
+        {
+          headers: {
+            'Authorization': PEXELS_API_KEY,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: PexelsResponse = await response.json();
+      setPhotos(data.photos);
+    } catch (err) {
+      console.error('Error fetching curated photos:', err);
+      setError('Failed to load photos. Please check your internet connection.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch photos from Pexels API
   const searchPhotos = async (query: string) => {
     if (!query.trim()) {
-      Alert.alert('Search Required', 'Please enter a search term');
+      // If search is cleared, return to curated feed
+      loadCuratedPhotos();
       return;
     }
 
     setLoading(true);
     setError(null);
+    setIsSearchMode(true);
     
     try {
       let allPhotos: PexelsPhoto[] = [];
@@ -130,6 +169,14 @@ export default function InspoScreen() {
     searchPhotos(searchQuery);
   };
 
+  // Handle search input change
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    if (text.trim() === '') {
+      loadCuratedPhotos();
+    }
+  };
+
   // Open photo in fullscreen modal
   const openPhotoModal = (photo: PexelsPhoto) => {
     setSelectedPhoto(photo);
@@ -151,7 +198,6 @@ export default function InspoScreen() {
         return;
       }
 
-      // Use MediaLibrary.saveToLibraryAsync directly with the URL
       await MediaLibrary.saveToLibraryAsync(photo.src.large);
       Alert.alert('Success', 'Photo saved to your library!');
     } catch (error) {
@@ -166,33 +212,143 @@ export default function InspoScreen() {
     closePhotoModal();
   };
 
-  // Render individual photo item in grid
-  const renderPhotoItem = ({ item }: { item: PexelsPhoto }) => (
-    <TouchableOpacity 
-      style={styles.photoItem}
-      onPress={() => openPhotoModal(item)}
-      activeOpacity={0.8}
-    >
-      <Image 
-        source={{ uri: item.src.medium }}
-        style={styles.photoImage}
-        resizeMode="cover"
-      />
-      <View style={styles.photoOverlay}>
-        <Text style={styles.photographerText} numberOfLines={1}>
-          📷 {item.photographer}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+  // Handle like/unlike photo
+  const toggleLike = (photoId: number) => {
+    setLikedPhotos(prev => {
+      const newLiked = new Set(prev);
+      if (newLiked.has(photoId)) {
+        newLiked.delete(photoId);
+      } else {
+        newLiked.add(photoId);
+        // Remove from disliked if it was disliked
+        setDislikedPhotos(prevDisliked => {
+          const newDisliked = new Set(prevDisliked);
+          newDisliked.delete(photoId);
+          return newDisliked;
+        });
+      }
+      return newLiked;
+    });
+  };
+
+  // Handle dislike photo (removes from screen)
+  const toggleDislike = (photoId: number) => {
+    setDislikedPhotos(prev => {
+      const newDisliked = new Set(prev);
+      newDisliked.add(photoId);
+      return newDisliked;
+    });
+    // Remove from liked if it was liked
+    setLikedPhotos(prevLiked => {
+      const newLiked = new Set(prevLiked);
+      newLiked.delete(photoId);
+      return newLiked;
+    });
+  };
+
+  // Render individual photo item - Instagram style for curated, grid for search
+  const renderPhotoItem = ({ item }: { item: PexelsPhoto }) => {
+    if (isSearchMode) {
+      // Grid layout for search results
+      return (
+        <TouchableOpacity 
+          style={styles.photoItem}
+          onPress={() => openPhotoModal(item)}
+          activeOpacity={0.8}
+        >
+          <Image 
+            source={{ uri: item.src.medium }}
+            style={styles.photoImage}
+            resizeMode="cover"
+          />
+          <View style={styles.photoOverlay}>
+            <Text style={styles.photographerText} numberOfLines={1}>
+              📷 {item.photographer}
+            </Text>
+          </View>
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={styles.likeButton}
+              onPress={() => toggleLike(item.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"} 
+                size={20} 
+                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.dislikeButton}
+              onPress={() => toggleDislike(item.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"} 
+                size={20} 
+                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      );
+    } else {
+      // Instagram-style full-width layout for curated photos
+      return (
+        <TouchableOpacity 
+          style={styles.instagramPhotoItem}
+          onPress={() => openPhotoModal(item)}
+          activeOpacity={0.9}
+        >
+          <Image 
+            source={{ uri: item.src.large }}
+            style={styles.instagramPhotoImage}
+            resizeMode="cover"
+          />
+          <View style={styles.instagramPhotoOverlay}>
+            <View style={styles.photographerInfo}>
+              <Ionicons name="camera" size={14} color="white" />
+              <Text style={styles.instagramPhotographerText} numberOfLines={1}>
+                {item.photographer}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.instagramButtonContainer}>
+            <TouchableOpacity 
+              style={styles.instagramLikeButton}
+              onPress={() => toggleLike(item.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"} 
+                size={24} 
+                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.instagramDislikeButton}
+              onPress={() => toggleDislike(item.id)}
+              activeOpacity={0.7}
+            >
+              <Ionicons 
+                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"} 
+                size={24} 
+                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"} 
+              />
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+  };
 
   // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons name="search" size={64} color="#ccc" />
-      <Text style={styles.emptyStateTitle}>Find Photography Inspiration</Text>
+      <Ionicons name="images" size={64} color="#ccc" />
+      <Text style={styles.emptyStateTitle}>Discover Amazing Photography</Text>
       <Text style={styles.emptyStateSubtitle}>
-        Search for topics like "portrait", "landscape", "cinematic" to discover amazing photos
+        Browse curated photos or search for specific inspiration
       </Text>
     </View>
   );
@@ -203,7 +359,7 @@ export default function InspoScreen() {
       <Ionicons name="alert-circle" size={64} color="#FF3B30" />
       <Text style={styles.errorTitle}>Oops!</Text>
       <Text style={styles.errorSubtitle}>{error}</Text>
-      <TouchableOpacity style={styles.retryButton} onPress={() => handleSearch()}>
+      <TouchableOpacity style={styles.retryButton} onPress={() => loadCuratedPhotos()}>
         <Text style={styles.retryButtonText}>Try Again</Text>
       </TouchableOpacity>
     </View>
@@ -221,7 +377,7 @@ export default function InspoScreen() {
             placeholder="Search for inspiration..."
             placeholderTextColor="#999"
             value={searchQuery}
-            onChangeText={setSearchQuery}
+            onChangeText={handleSearchChange}
             onSubmitEditing={handleSearch}
             returnKeyType="search"
           />
@@ -244,7 +400,7 @@ export default function InspoScreen() {
         {loading && photos.length === 0 ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Searching for inspiration...</Text>
+            <Text style={styles.loadingText}>Loading inspiration...</Text>
           </View>
         ) : error ? (
           renderErrorState()
@@ -252,11 +408,12 @@ export default function InspoScreen() {
           renderEmptyState()
         ) : (
           <FlatList
-            data={photos}
+            data={photos.filter(photo => !dislikedPhotos.has(photo.id))}
             renderItem={renderPhotoItem}
             keyExtractor={(item) => item.id.toString()}
-            numColumns={numColumns}
-            contentContainerStyle={styles.photoGrid}
+            numColumns={isSearchMode ? numColumns : 1}
+            key={isSearchMode ? 'grid' : 'list'} // Force re-render when layout changes
+            contentContainerStyle={isSearchMode ? styles.photoGrid : styles.instagramPhotoList}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -417,6 +574,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  // Grid layout styles (for search results)
   photoGrid: {
     padding: 10,
   },
@@ -446,6 +604,87 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 12,
     fontWeight: '500',
+  },
+  // Instagram-style layout (for curated photos)
+  instagramPhotoList: {
+    paddingVertical: 0,
+  },
+  instagramPhotoItem: {
+    width: width,
+    height: width * 1.25,
+    marginBottom: 1,
+    backgroundColor: '#f0f0f0',
+  },
+  instagramPhotoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  instagramPhotoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  photographerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  instagramPhotographerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  // Button container styles
+  buttonContainer: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  instagramButtonContainer: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  // Like button styles
+  likeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dislikeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instagramLikeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instagramDislikeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContainer: {
     flex: 1,
@@ -505,5 +744,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
   },
-
 });
