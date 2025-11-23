@@ -59,6 +59,9 @@ export default function AppCamera() {
   const [lastPinchDistance, setLastPinchDistance] = useState(0);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
   const zoomIndicatorAnim = useRef(new Animated.Value(0)).current;
+  const [isInstructionMinimized, setIsInstructionMinimized] = useState(false);
+  const [minimizedSide, setMinimizedSide] = useState<'left' | 'right'>('right');
+  const instructionPanAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (permission?.granted) {
@@ -478,41 +481,103 @@ export default function AppCamera() {
             <VisualInstructionOverlay instructions={visualInstructions} />
             {/* AI Instruction Card */}
             {currentInstruction && (
-              <View style={styles.instructionCard}>
-                <View style={styles.instructionHeader}>
-                  <View style={styles.scoreContainer}>
-                    <Text style={styles.scoreLabel}>Score</Text>
+              <Animated.View
+                style={[
+                  isInstructionMinimized ? styles.instructionCardMinimized : styles.instructionCard,
+                  {
+                    transform: [{ translateX: instructionPanAnim }],
+                    right: isInstructionMinimized && minimizedSide === 'right' ? 10 : undefined,
+                    left: isInstructionMinimized && minimizedSide === 'left' ? 10 : undefined,
+                  }
+                ]}
+                {...PanResponder.create({
+                  onStartShouldSetPanResponder: () => true,
+                  onMoveShouldSetPanResponder: (evt, gestureState) => {
+                    return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) && Math.abs(gestureState.dx) > 5;
+                  },
+                  onPanResponderGrant: () => {
+                    instructionPanAnim.setOffset(instructionPanAnim._value);
+                  },
+                  onPanResponderMove: Animated.event(
+                    [null, { dx: instructionPanAnim }],
+                    { useNativeDriver: false }
+                  ),
+                  onPanResponderRelease: (evt, gestureState) => {
+                    instructionPanAnim.flattenOffset();
+                    
+                    if (gestureState.dx > 80) {
+                      // Swipe right
+                      setMinimizedSide('right');
+                      setIsInstructionMinimized(true);
+                      Animated.spring(instructionPanAnim, {
+                        toValue: 0,
+                        useNativeDriver: false,
+                      }).start();
+                    } else if (gestureState.dx < -80) {
+                      // Swipe left
+                      setMinimizedSide('left');
+                      setIsInstructionMinimized(true);
+                      Animated.spring(instructionPanAnim, {
+                        toValue: 0,
+                        useNativeDriver: false,
+                      }).start();
+                    } else {
+                      // Snap back
+                      Animated.spring(instructionPanAnim, {
+                        toValue: 0,
+                        useNativeDriver: false,
+                      }).start();
+                    }
+                  },
+                }).panHandlers}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    if (isInstructionMinimized) {
+                      setIsInstructionMinimized(false);
+                      Animated.spring(instructionPanAnim, {
+                        toValue: 0,
+                        useNativeDriver: false,
+                      }).start();
+                    }
+                  }}
+                  activeOpacity={isInstructionMinimized ? 0.8 : 1}
+                >
+                  {isInstructionMinimized ? (
                     <Text style={[
-                      styles.scoreValue,
+                      styles.tabScore,
                       { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
                     ]}>
                       {aiFeedback?.score}
                     </Text>
-                  </View>
-                  <View style={styles.progressDots}>
-                    {aiFeedback?.instructions.map((_, idx) => (
-                      <View
-                        key={idx}
-                        style={[
-                          styles.dot,
-                          idx === currentInstruction.step - 1 && styles.dotActive
-                        ]}
-                      />
-                    ))}
-                  </View>
-                </View>
+                  ) : (
+                    <>
+                      <View style={styles.instructionHeader}>
+                        <View style={styles.scoreContainer}>
+                          <Text style={styles.scoreLabel}>Score</Text>
+                          <Text style={[
+                            styles.scoreValue,
+                            { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
+                          ]}>
+                            {aiFeedback?.score}
+                          </Text>
+                        </View>
 
-                <Text style={styles.instructionText}>
-                  {currentInstruction.text}
-                </Text>
+                      </View>
 
-                {aiFeedback?.perfectShot && (
-                  <View style={styles.perfectShotBadge}>
-                    <Ionicons name="checkmark-circle" size={20} color="#4CD964" />
-                    <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
-                  </View>
-                )}
-              </View>
+                      <Text style={styles.instructionText}>
+                        {currentInstruction.text}
+                      </Text>
+
+                      {aiFeedback?.perfectShot && (
+                        <View style={styles.perfectShotBadge}>
+                          <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
             )}
 
             {/* Manual Feedback Button */}
@@ -780,27 +845,60 @@ const styles = StyleSheet.create({
   },
   instructionCard: {
     position: 'absolute',
-    top: 120,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    top: 70,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     borderRadius: 20,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.2)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    maxWidth: '90%',
+    minWidth: 200,
+  },
+  instructionCardMinimized: {
+    position: 'absolute',
+    top: 70,
+    width: 60,
+    height: 40,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
+  },
+  tabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  tabScore: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  tabText: {
+    color: 'white',
+    fontSize: 8,
+    textAlign: 'center',
+    lineHeight: 10,
+    flexWrap: 'wrap',
   },
   instructionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 16,
   },
   scoreContainer: {
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
   },
   scoreLabel: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
@@ -824,10 +922,10 @@ const styles = StyleSheet.create({
   },
   instructionText: {
     color: 'white',
-    fontSize: 18,
-    lineHeight: 26,
+    fontSize: 16,
+    lineHeight: 22,
     fontWeight: '600',
-    textAlign: 'center',
+    flex: 1,
   },
   perfectShotBadge: {
     flexDirection: 'row',
