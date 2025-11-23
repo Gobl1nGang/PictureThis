@@ -507,10 +507,10 @@ export default function InspoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#ffffff',
   },
   header: {
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#f8f9fa',
     paddingTop: 25,
     paddingHorizontal: 20,
     paddingBottom: 35,
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#b19068',
+    color: '#000000',
     marginBottom: 15,
     paddingLeft: 10,
   },
@@ -547,11 +547,11 @@ const styles = StyleSheet.create({
   searchButton: {
     width: 52,
     height: 52,
-    backgroundColor: '#bba06b',
+    backgroundColor: '#22c55e',
     borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#8b7355',
+    shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -559,7 +559,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#d3c6a2',
+    backgroundColor: '#ffffff',
   },
   loadingContainer: {
     flex: 1,
@@ -623,15 +623,15 @@ const styles = StyleSheet.create({
   photoItem: {
     width: imageSize,
     height: imageSize * 1.2,
-    margin: 6,
-    borderRadius: 32,
+    margin: 4,
+    borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
-    shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   photoImage: {
     width: '100%',
@@ -656,9 +656,12 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   instagramPhotoItem: {
-    width: width,
+    width: width - 6,
     height: width * 1.25,
-    marginBottom: 1,
+    marginBottom: 3,
+    marginHorizontal: 3,
+    borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: '#f0f0f0',
   },
   instagramPhotoImage: {
