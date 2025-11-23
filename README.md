@@ -91,7 +91,7 @@ npx expo run:ios
 #### Android
 ```bash
 npx expo run:android
-```
+``` 
 
 ### Troubleshooting
 
