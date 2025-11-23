@@ -92,6 +92,16 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
                 <Text style={styles.label}>Summary</Text>
                 <Text style={styles.value}>{analysis.summary}</Text>
               </View>
+              
+              <TouchableOpacity 
+                style={styles.setReferenceButton} 
+                onPress={() => {
+                  global.referenceImageUri = imageUri;
+                  onClose();
+                }}
+              >
+                <Text style={styles.setReferenceButtonText}>Set as Reference</Text>
+              </TouchableOpacity>
             </ScrollView>
           )}
         </View>
@@ -172,5 +182,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
     lineHeight: 22,
+  },
+  setReferenceButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 8,
+    alignSelf: 'center',
+    marginTop: 20,
+  },
+  setReferenceButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
