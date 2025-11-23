@@ -7,7 +7,7 @@ import {
     useImage,
     SkImage,
 } from '@shopify/react-native-skia';
-import { ImageAdjustments } from './imageEnhancement';
+import { ImageAdjustments } from '../services/imageEnhancement';
 
 interface FilteredImageProps {
     uri: string;
