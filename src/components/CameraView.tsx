@@ -52,6 +52,9 @@ export default function AppCamera() {
   const [lastAIProcessedImage, setLastAIProcessedImage] = useState<AIProcessedImage | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
   const thumbnailAnim = useRef(new Animated.Value(0)).current;
+  const [focusPoint, setFocusPoint] = useState<{x: number, y: number} | null>(null);
+
+  const focusAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (permission?.granted) {
@@ -251,6 +254,26 @@ export default function AppCamera() {
         zoom={zoom}
         autofocus="on"
         enableTorch={enableTorch}
+        onTouchEnd={(event) => {
+          const { locationX, locationY } = event.nativeEvent;
+          setFocusPoint({ x: locationX, y: locationY });
+          
+          // Animate focus indicator
+          focusAnim.setValue(0);
+          Animated.sequence([
+            Animated.timing(focusAnim, {
+              toValue: 1,
+              duration: 150,
+              useNativeDriver: true,
+            }),
+            Animated.delay(600),
+            Animated.timing(focusAnim, {
+              toValue: 0,
+              duration: 150,
+              useNativeDriver: true,
+            }),
+          ]).start(() => setFocusPoint(null));
+        }}
       >
         <SafeAreaView style={styles.uiContainer}>
           {/* Top Controls */}
@@ -318,6 +341,29 @@ export default function AppCamera() {
               <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
               <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
             </View>
+          )}
+
+          {/* Focus Indicator */}
+          {focusPoint && (
+            <Animated.View
+              style={[
+                styles.focusIndicator,
+                {
+                  left: focusPoint.x - 40,
+                  top: focusPoint.y - 40,
+                  opacity: focusAnim,
+                  transform: [{
+                    scale: focusAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1.5, 1],
+                    })
+                  }]
+                }
+              ]}
+              pointerEvents="none"
+            >
+              <View style={styles.focusBox} />
+            </Animated.View>
           )}
 
           {/* AI Instruction Card */}
@@ -768,6 +814,25 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  focusIndicator: {
+    position: 'absolute',
+    width: 80,
+    height: 80,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  focusBox: {
+    width: 60,
+    height: 60,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    backgroundColor: 'transparent',
+    borderRadius: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 2,
   },
   modalContainer: {
     flex: 1,
