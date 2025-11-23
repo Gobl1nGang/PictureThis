@@ -7,6 +7,7 @@ import {
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage, AnalyzeImageOptions } from '../services/bedrock';
+import { processImageWithAI, AIProcessedImage } from '../services/aiImageProcessor';
 import { useReferencePhoto } from '../features/reference-photo';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { usePhotoContext } from '../contexts/PhotoContextContext';
@@ -48,6 +49,7 @@ export default function AppCamera() {
   const [showContextSelector, setShowContextSelector] = useState(false);
   const [showPhotoEditor, setShowPhotoEditor] = useState(false);
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
+  const [lastAIProcessedImage, setLastAIProcessedImage] = useState<AIProcessedImage | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
   const thumbnailAnim = useRef(new Animated.Value(0)).current;
 
@@ -171,7 +173,7 @@ export default function AppCamera() {
     }
   };
 
-  // Take high-res picture
+  // Take high-res picture with AI enhancement
   const takeHighResPicture = async () => {
     if (cameraRef.current) {
       try {
@@ -181,8 +183,19 @@ export default function AppCamera() {
         });
 
         if (photo?.uri) {
-          // Show thumbnail with animation
-          setLastPhotoUri(photo.uri);
+          // Process image with AI recommendations
+          const aiProcessedImage = await processImageWithAI(
+            photo.uri,
+            currentContext?.type,
+            {
+              colorGrading: profile?.editingPreferences.preferredColorGrading,
+              style: profile?.preferredStyles[0],
+            }
+          );
+
+          // Use the AI-enhanced image
+          setLastPhotoUri(aiProcessedImage.enhancedUri);
+          setLastAIProcessedImage(aiProcessedImage);
           setShowThumbnail(true);
 
           Animated.sequence([
@@ -199,7 +212,8 @@ export default function AppCamera() {
             }),
           ]).start(() => setShowThumbnail(false));
 
-          const asset = await MediaLibrary.createAssetAsync(photo.uri);
+          // Save the AI-enhanced image
+          const asset = await MediaLibrary.createAssetAsync(aiProcessedImage.enhancedUri);
           const album = await MediaLibrary.getAlbumAsync('PictureThis');
 
           if (album == null) {
@@ -208,7 +222,7 @@ export default function AppCamera() {
             await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
           }
 
-          Alert.alert("Saved!", "Photo saved to PictureThis album.");
+          Alert.alert("Saved!", "AI-enhanced photo saved to PictureThis album.");
         }
       } catch (error) {
         Alert.alert("Error", "Failed to save photo.");
@@ -489,6 +503,7 @@ export default function AppCamera() {
         >
           <PhotoEditor
             imageUri={lastPhotoUri}
+            aiProcessedImage={lastAIProcessedImage}
             onClose={() => setShowPhotoEditor(false)}
             onSave={(editedUri) => {
               setLastPhotoUri(editedUri);

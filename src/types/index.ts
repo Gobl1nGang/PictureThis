@@ -141,10 +141,21 @@ export interface AIFeedback {
 
 // Photo Metadata Types
 
+export interface AdjustmentSlider {
+    key: string;
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    unit: string;
+}
+
 export interface PhotoMetadata {
     id: string;
     assetId: string;
     uri: string;
+    originalUri?: string;
     context: PhotoContext;
     userProfile: {
         skillLevel: SkillLevel;
@@ -160,6 +171,8 @@ export interface PhotoMetadata {
         presetApplied?: string;
         adjustments: EditingPreset['adjustments'];
         aiSuggestions: string[];
+        aiAdjustments?: EditingPreset['adjustments'];
+        adjustmentSliders?: AdjustmentSlider[];
     };
     createdAt: number;
     updatedAt: number;

@@ -15,13 +15,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { generateAIEnhancement, AIEnhancementResult } from '../services/imageEnhancement';
+import { AIProcessedImage, createAdjustmentSliders } from '../services/aiImageProcessor';
+import { analyzePixelValues } from '../services/pixelAnalyzer';
 import { usePhotoContext } from '../contexts/PhotoContextContext';
 import { useUserProfile } from '../contexts/UserProfileContext';
+import { AdjustmentSlider } from '../types/index';
+import AdjustmentSliderComponent from '../components/AdjustmentSlider';
 
 const { width } = Dimensions.get('window');
 
 interface PhotoEditorProps {
     imageUri: string;
+    aiProcessedImage?: AIProcessedImage | null;
     onClose: () => void;
     onSave?: (editedUri: string) => void;
 }
@@ -36,7 +41,7 @@ const ASPECT_RATIOS = [
     { label: '9:16', value: 9 / 16 },
 ];
 
-export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorProps) {
+export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSave }: PhotoEditorProps) {
     const [editMode, setEditMode] = useState<EditMode>('ai');
     const [aiEnhancement, setAiEnhancement] = useState<AIEnhancementResult | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
@@ -44,17 +49,39 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
     const [currentImageUri, setCurrentImageUri] = useState(imageUri);
     const [rotation, setRotation] = useState(0);
     const [hasChanges, setHasChanges] = useState(false);
+    const [adjustmentSliders, setAdjustmentSliders] = useState<AdjustmentSlider[]>([]);
+    const [currentAdjustments, setCurrentAdjustments] = useState<Record<string, number>>({});
 
     const { currentContext } = usePhotoContext();
     const { profile } = useUserProfile();
 
     useEffect(() => {
-        loadAIEnhancement();
-    }, []);
+        if (aiProcessedImage) {
+            setAiEnhancement({
+                adjustments: aiProcessedImage.adjustments,
+                suggestions: aiProcessedImage.suggestions,
+                reasoning: aiProcessedImage.reasoning,
+            });
+            
+            const sliders = createAdjustmentSliders(aiProcessedImage.adjustments);
+            setAdjustmentSliders(sliders);
+            
+            const initialAdjustments: Record<string, number> = {};
+            sliders.forEach(slider => {
+                initialAdjustments[slider.key] = slider.value;
+            });
+            setCurrentAdjustments(initialAdjustments);
+        } else {
+            // Skip AI enhancement loading to avoid signature errors
+            setIsLoadingAI(false);
+        }
+    }, [aiProcessedImage]);
 
     useEffect(() => {
-        setHasChanges(currentImageUri !== imageUri || rotation !== 0);
-    }, [currentImageUri, rotation]);
+        const originalUri = aiProcessedImage?.originalUri || imageUri;
+        const hasAdjustmentChanges = Object.keys(currentAdjustments).length > 0;
+        setHasChanges(currentImageUri !== originalUri || rotation !== 0 || hasAdjustmentChanges);
+    }, [currentImageUri, rotation, currentAdjustments, aiProcessedImage, imageUri]);
 
     const loadAIEnhancement = async () => {
         setIsLoadingAI(true);
@@ -113,8 +140,8 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
     };
 
     const handleReset = () => {
-        setCurrentImageUri(imageUri);
-        setRotation(0);
+        console.log('handleReset called');
+        resetToOriginal();
     };
 
     const handleSave = async () => {
@@ -192,10 +219,19 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
                         ))}
                     </View>
 
+                    {aiProcessedImage && (
+                        <View style={styles.appliedCard}>
+                            <Ionicons name="checkmark-circle" size={20} color="#4CD964" />
+                            <Text style={styles.appliedText}>
+                                These adjustments have been automatically applied to your photo! Use the Adjust tab to fine-tune them manually.
+                            </Text>
+                        </View>
+                    )}
+                    
                     <View style={styles.noteCard}>
                         <Ionicons name="information-circle-outline" size={20} color="#666" />
                         <Text style={styles.noteText}>
-                            Note: Color adjustments require a development build. Use these recommendations as a guide for editing in other apps, or use the Adjust tab for basic edits.
+                            Note: Full color adjustments require a development build. Basic enhancements have been applied automatically.
                         </Text>
                     </View>
                 </>
@@ -225,10 +261,74 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
         </View>
     );
 
+    const handleAdjustmentChange = async (key: string, value: number) => {
+        const newAdjustments = { ...currentAdjustments, [key]: value };
+        setCurrentAdjustments(newAdjustments);
+        setHasChanges(true);
+        console.log('Adjustment changed:', { [key]: value, allAdjustments: newAdjustments });
+        
+        // Analyze pixel values
+        const pixelSamples = await analyzePixelValues(currentImageUri, 5);
+        console.log('Current pixel samples:', pixelSamples);
+    };
+
+    const resetAdjustments = () => {
+        if (adjustmentSliders.length > 0) {
+            const resetValues: Record<string, number> = {};
+            adjustmentSliders.forEach(slider => {
+                resetValues[slider.key] = slider.value;
+            });
+            setCurrentAdjustments(resetValues);
+            console.log('Reset to AI values:', resetValues);
+        }
+    };
+
+    const resetToOriginal = () => {
+        console.log('Reset button clicked');
+        console.log('Current adjustmentSliders:', adjustmentSliders);
+        console.log('Current adjustments before reset:', currentAdjustments);
+        
+        if (adjustmentSliders.length > 0) {
+            const resetValues: Record<string, number> = {};
+            adjustmentSliders.forEach(slider => {
+                resetValues[slider.key] = 0;
+            });
+            setCurrentAdjustments(resetValues);
+            console.log('Reset values set to:', resetValues);
+        } else {
+            console.log('No adjustment sliders found');
+        }
+        setRotation(0);
+        console.log('Reset completed');
+    };
+
     const renderAdjustMode = () => (
         <View style={styles.modeContainer}>
             <ScrollView contentContainerStyle={styles.adjustContent}>
-                <Text style={styles.sectionTitle}>Rotate</Text>
+                {adjustmentSliders.length > 0 && (
+                    <>
+                        <View style={styles.aiAdjustmentsHeader}>
+                            <Text style={styles.sectionTitle}>AI Recommended Adjustments</Text>
+                            <TouchableOpacity style={styles.resetAdjustmentsButton} onPress={resetAdjustments}>
+                                <Ionicons name="refresh" size={16} color="#007AFF" />
+                                <Text style={styles.resetAdjustmentsText}>Reset to AI</Text>
+                            </TouchableOpacity>
+                        </View>
+                        
+                        {adjustmentSliders.map((slider) => (
+                            <AdjustmentSliderComponent
+                                key={slider.key}
+                                slider={slider}
+                                value={currentAdjustments[slider.key] ?? 0}
+                                onValueChange={(value) => handleAdjustmentChange(slider.key, value)}
+                            />
+                        ))}
+                        
+                        <View style={styles.divider} />
+                    </>
+                )}
+                
+                <Text style={styles.sectionTitle}>Transform</Text>
                 <View style={styles.rotateButtons}>
                     <TouchableOpacity style={styles.actionButton} onPress={() => handleRotate(-90)}>
                         <Ionicons name="arrow-back" size={24} color="white" />
@@ -240,7 +340,6 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.sectionTitle}>Flip</Text>
                 <View style={styles.flipButtons}>
                     <TouchableOpacity style={styles.actionButton} onPress={() => handleFlip('horizontal')}>
                         <Ionicons name="swap-horizontal" size={24} color="white" />
@@ -284,6 +383,27 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
                     style={styles.image}
                     resizeMode="contain"
                 />
+                
+                {/* Image status indicator */}
+                {aiProcessedImage && (
+                    <View style={styles.imageStatusContainer}>
+                        <View style={[
+                            styles.imageStatusBadge,
+                            currentImageUri === aiProcessedImage.originalUri 
+                                ? styles.originalBadge 
+                                : styles.enhancedBadge
+                        ]}>
+                            <Ionicons 
+                                name={currentImageUri === aiProcessedImage.originalUri ? "image-outline" : "sparkles"} 
+                                size={12} 
+                                color="white" 
+                            />
+                            <Text style={styles.imageStatusText}>
+                                {currentImageUri === aiProcessedImage.originalUri ? "Original" : "AI Enhanced"}
+                            </Text>
+                        </View>
+                    </View>
+                )}
             </View>
 
             <View style={styles.tabsContainer}>
@@ -320,9 +440,12 @@ export default function PhotoEditor({ imageUri, onClose, onSave }: PhotoEditorPr
 
             {hasChanges && (
                 <View style={styles.bottomActions}>
-                    <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+                    <TouchableOpacity style={styles.resetButton} onPress={() => {
+                        console.log('Reset button pressed');
+                        handleReset();
+                    }}>
                         <Ionicons name="refresh" size={20} color="#666" />
-                        <Text style={styles.resetButtonText}>Reset</Text>
+                        <Text style={styles.resetButtonText}>Reset to Original</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -600,5 +723,70 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#666',
         fontWeight: '500',
+    },
+    aiAdjustmentsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    resetAdjustmentsButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#007AFF',
+    },
+    resetAdjustmentsText: {
+        fontSize: 12,
+        color: '#007AFF',
+        fontWeight: '500',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#E5E5EA',
+        marginVertical: 20,
+    },
+    appliedCard: {
+        flexDirection: 'row',
+        backgroundColor: '#E8F5E8',
+        padding: 12,
+        borderRadius: 8,
+        gap: 8,
+        marginBottom: 16,
+    },
+    appliedText: {
+        flex: 1,
+        fontSize: 12,
+        color: '#4CD964',
+        lineHeight: 18,
+        fontWeight: '500',
+    },
+    imageStatusContainer: {
+        position: 'absolute',
+        top: 16,
+        left: 16,
+    },
+    imageStatusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+    },
+    originalBadge: {
+        backgroundColor: 'rgba(102, 102, 102, 0.8)',
+    },
+    enhancedBadge: {
+        backgroundColor: 'rgba(0, 122, 255, 0.8)',
+    },
+    imageStatusText: {
+        fontSize: 10,
+        color: 'white',
+        fontWeight: '600',
     },
 });
