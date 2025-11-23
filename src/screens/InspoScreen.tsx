@@ -19,7 +19,7 @@ import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
 const numColumns = 2;
-const imageSize = (width - 30) / numColumns;
+const imageSize = (width - 20) / numColumns;
 
 // Pexels API configuration
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY || 'tWfZiBvUEg9yR3BRR74ZUylDykEVQs3Cr3UbDg10ssbz3G34Ne6pZ8rF';
@@ -369,7 +369,9 @@ export default function InspoScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header with search bar */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Inspiration</Text>
+        <View style={styles.searchContainer}>
+          <Text style={styles.headerTitle}>Inspiration</Text>
+        </View>
         
         <View style={styles.searchContainer}>
           <TextInput
@@ -453,14 +455,7 @@ export default function InspoScreen() {
                   resizeMode="contain"
                 />
                 
-                <View style={styles.modalAttribution}>
-                  <Text style={styles.modalPhotographerText}>
-                    Photo by {selectedPhoto.photographer}
-                  </Text>
-                  <Text style={styles.modalSourceText}>
-                    via Pexels
-                  </Text>
-                </View>
+
               </>
             )}
           </TouchableOpacity>
@@ -479,21 +474,23 @@ export default function InspoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#e5e0ca',
   },
   header: {
-    backgroundColor: 'white',
+    backgroundColor: '#e5e0ca',
     paddingTop: 10,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#d0c9a8',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: 'bold',
-    color: '#333',
+    fontFamily: 'Georgia-Bold',
+    color: '#b19068',
     marginBottom: 15,
+    paddingLeft: 10,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -507,18 +504,20 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     paddingHorizontal: 20,
     fontSize: 16,
+    fontFamily: 'Georgia',
     color: '#333',
   },
   searchButton: {
     width: 44,
     height: 44,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#bba06b',
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     flex: 1,
+    backgroundColor: '#d3c6a2',
   },
   loadingContainer: {
     flex: 1,
@@ -576,13 +575,13 @@ const styles = StyleSheet.create({
   },
   // Grid layout styles (for search results)
   photoGrid: {
-    padding: 10,
+    padding: 6,
+    marginLeft: -2,
   },
   photoItem: {
     width: imageSize,
     height: imageSize * 1.2,
-    marginHorizontal: 5,
-    marginVertical: 5,
+    margin: 4,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
@@ -703,7 +702,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(187,160,107,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -715,7 +714,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(0,122,255,0.9)',
+    backgroundColor: 'rgba(187,160,107,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
   },
