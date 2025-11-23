@@ -98,7 +98,7 @@ function MainApp() {
             <Ionicons
               name={getTabIcon(tabName) as any}
               size={22}
-              color={activeTab === tabName ? '#fff' : '#666'}
+              color={activeTab === tabName ? '#fff' : '#fff'}
             />
             <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>
               {tabName}
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
 
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: '#000',
+    backgroundColor: '#b19068',
     borderTopWidth: 1,
     borderTopColor: '#333',
     paddingBottom: 40,
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tabText: {
-    color: '#666',
+    color: '#fff',
     fontSize: 11,
     fontWeight: '500',
   },
