@@ -100,14 +100,13 @@ export async function applyBedrockFilter(
 
         // Use Stable Diffusion 3.5 Large
         // Prompt focused on color grading to preserve structure
-        const prompt = `Photographic color grading: ${fullDescription}. Maintain exact image structure, composition, and subjects. High quality photo editing.`;
+        const prompt = `Photographic color grading: ${fullDescription}. Maintain exact image structure, composition, and subjects. Do not alter facial features or identity. High quality photo editing.`;
 
         const payload = {
             prompt: prompt,
             mode: "image-to-image",
             image: base64Image,
-            strength: 0.35, // 0.35 allows for visible color changes while keeping structure (0.0-1.0)
-            cfg_scale: 7,
+            strength: 0.20, // Lowered to 0.20 to strictly preserve facial features while allowing color changes
             seed: 0,
             output_format: "jpeg"
         };

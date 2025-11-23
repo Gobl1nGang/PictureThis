@@ -16,6 +16,7 @@ import ContextSelector from './ContextSelector';
 import PhotoEditor from '../screens/PhotoEditor';
 import { Ionicons } from '@expo/vector-icons';
 import { AIFeedback, AIInstruction } from '../types/index';
+import { VisualInstructionOverlay, InstructionType } from './VisualInstructionOverlay';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,6 +33,7 @@ export default function AppCamera() {
   const [aiFeedback, setAiFeedback] = useState<AIFeedback | null>(null);
   const [currentInstruction, setCurrentInstruction] = useState<AIInstruction | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [visualInstructions, setVisualInstructions] = useState<InstructionType[]>([]);
 
   // Camera Settings
   const [zoom, setZoom] = useState(0);
@@ -52,7 +54,7 @@ export default function AppCamera() {
   const [lastAIProcessedImage, setLastAIProcessedImage] = useState<AIProcessedImage | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
   const thumbnailAnim = useRef(new Animated.Value(0)).current;
-  const [focusPoint, setFocusPoint] = useState<{x: number, y: number} | null>(null);
+  const [focusPoint, setFocusPoint] = useState<{ x: number, y: number } | null>(null);
   const focusAnim = useRef(new Animated.Value(0)).current;
   const [lastPinchDistance, setLastPinchDistance] = useState(0);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
@@ -83,6 +85,50 @@ export default function AppCamera() {
     if (aiFeedback) {
       const instruction = InstructionEngine.getPriorityInstruction(aiFeedback);
       setCurrentInstruction(instruction);
+
+      // Parse for visual cues
+      if (instruction) {
+        const text = instruction.text.toLowerCase();
+        const newInstructions: InstructionType[] = [];
+
+        // Check for lighting instructions
+        if ((text.includes('light') || text.includes('sun')) &&
+          (text.includes('add') || text.includes('place') || text.includes('source') || text.includes('position') || text.includes('introduce'))) {
+          let vertical = 'mid';
+          let horizontal = 'center';
+
+          if (text.includes('top') || text.includes('upper') || text.includes('high')) vertical = 'top';
+          else if (text.includes('bottom') || text.includes('lower') || text.includes('low')) vertical = 'bottom';
+
+          if (text.includes('left')) horizontal = 'left';
+          else if (text.includes('right')) horizontal = 'right';
+
+          // @ts-ignore
+          newInstructions.push(`light_${vertical}_${horizontal}`);
+        }
+
+        // Check for movement instructions (can be simultaneous)
+        if (text.includes('left')) newInstructions.push('move_left');
+        else if (text.includes('right')) newInstructions.push('move_right');
+        else if (text.includes('up') || text.includes('higher')) newInstructions.push('move_up');
+        else if (text.includes('down') || text.includes('lower')) newInstructions.push('move_down');
+        else if (text.includes('closer') || text.includes('forward')) newInstructions.push('move_forward');
+        else if (text.includes('back') || text.includes('further') || text.includes('away')) newInstructions.push('move_back');
+        else if (text.includes('rotate') && text.includes('clockwise')) newInstructions.push('rotate_cw');
+        else if (text.includes('rotate')) newInstructions.push('rotate_ccw');
+
+        // Check for angle instructions
+        if (text.includes('angle') || text.includes('tilt')) {
+          if (text.includes('high') || text.includes('above') || text.includes('down')) newInstructions.push('angle_high');
+          else if (text.includes('low') || text.includes('below') || text.includes('up')) newInstructions.push('angle_low');
+        }
+
+        setVisualInstructions(newInstructions);
+
+        // Clear visual instruction after 5 seconds
+        const timer = setTimeout(() => setVisualInstructions([]), 5000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [aiFeedback]);
 
@@ -260,12 +306,12 @@ export default function AppCamera() {
               const distance = Math.sqrt(
                 Math.pow(touch2.pageX - touch1.pageX, 2) + Math.pow(touch2.pageY - touch1.pageY, 2)
               );
-              
+
               if (lastPinchDistance > 0) {
                 const delta = distance - lastPinchDistance;
                 const newZoom = Math.max(0, Math.min(1, zoom + delta * 0.001));
                 setZoom(newZoom);
-                
+
                 // Show zoom indicator
                 if (!showZoomIndicator) {
                   setShowZoomIndicator(true);
@@ -301,7 +347,7 @@ export default function AppCamera() {
             if (event.nativeEvent.touches.length <= 1) {
               const { locationX, locationY } = event.nativeEvent;
               setFocusPoint({ x: locationX, y: locationY });
-              
+
               // Animate focus indicator
               focusAnim.setValue(0);
               Animated.sequence([
@@ -320,253 +366,256 @@ export default function AppCamera() {
             }
           }}
         >
-        <SafeAreaView style={styles.uiContainer}>
-          {/* Top Controls */}
-          <View style={styles.topControls}>
-            <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
-              <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
-            </TouchableOpacity>
-
-            {/* Context Badge */}
-            <TouchableOpacity
-              style={styles.contextBadge}
-              onPress={() => setShowContextSelector(true)}
-            >
-              <Text style={styles.contextBadgeText}>
-                {currentContext?.type || 'Set Context'} • {currentContext?.timeOfDay || 'Auto'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
-              <Ionicons
-                name={enableTorch ? "flash" : "flash-off"}
-                size={28}
-                color="white"
-              />
-            </TouchableOpacity>
-          </View>
-
-          {/* Temporary Zoom Controls for Testing */}
-          <View style={styles.tempZoomControls}>
-            <TouchableOpacity 
-              style={styles.zoomButton}
-              onPress={() => {
-                const newZoom = Math.max(0, zoom - 0.1);
-                setZoom(newZoom);
-                setShowZoomIndicator(true);
-                Animated.timing(zoomIndicatorAnim, {
-                  toValue: 1,
-                  duration: 200,
-                  useNativeDriver: true,
-                }).start();
-                setTimeout(() => {
-                  Animated.timing(zoomIndicatorAnim, {
-                    toValue: 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => setShowZoomIndicator(false));
-                }, 1000);
-              }}
-            >
-              <Text style={styles.zoomButtonText}>-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.zoomButton}
-              onPress={() => {
-                const newZoom = Math.min(1, zoom + 0.1);
-                setZoom(newZoom);
-                setShowZoomIndicator(true);
-                Animated.timing(zoomIndicatorAnim, {
-                  toValue: 1,
-                  duration: 200,
-                  useNativeDriver: true,
-                }).start();
-                setTimeout(() => {
-                  Animated.timing(zoomIndicatorAnim, {
-                    toValue: 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => setShowZoomIndicator(false));
-                }, 1000);
-              }}
-            >
-              <Text style={styles.zoomButtonText}>+</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Reference Photo Indicator */}
-          {referencePhoto && (
-            <TouchableOpacity
-              style={styles.referenceIndicator}
-              onPress={() => setShowAnalysisModal(true)}
-              onLongPress={() => {
-                Alert.alert(
-                  "Clear Reference",
-                  "Remove the current reference photo?",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Clear",
-                      style: "destructive",
-                      onPress: () => clearReference()
-                    }
-                  ]
-                );
-              }}
-            >
-              <Image
-                source={{ uri: referencePhoto.uri }}
-                style={styles.referenceThumbnail}
-              />
-              <View style={styles.referenceLabel}>
-                <Ionicons name="image" size={12} color="white" />
-                <Text style={styles.referenceLabelText}>REF</Text>
-              </View>
-            </TouchableOpacity>
-          )}
-
-          {/* Grid Overlay */}
-          {showGrid && (
-            <View style={styles.gridContainer} pointerEvents="none">
-              <View style={[styles.gridLineVertical, { left: width / 3 }]} />
-              <View style={[styles.gridLineVertical, { left: width * 2 / 3 }]} />
-              <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
-              <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
-            </View>
-          )}
-
-          {/* Focus Indicator */}
-          {focusPoint && (
-            <Animated.View
-              style={[
-                styles.focusIndicator,
-                {
-                  left: focusPoint.x - 40,
-                  top: focusPoint.y - 40,
-                  opacity: focusAnim,
-                  transform: [{
-                    scale: focusAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1.5, 1],
-                    })
-                  }]
-                }
-              ]}
-              pointerEvents="none"
-            >
-              <View style={styles.focusBox} />
-            </Animated.View>
-          )}
-
-          {/* Zoom Indicator */}
-          {showZoomIndicator && (
-            <Animated.View
-              style={[
-                styles.zoomIndicator,
-                { opacity: zoomIndicatorAnim }
-              ]}
-              pointerEvents="none"
-            >
-              <View style={styles.zoomTrack}>
-                <View style={[styles.zoomFill, { width: `${zoom * 100}%` }]} />
-              </View>
-              <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
-            </Animated.View>
-          )}
-
-          {/* AI Instruction Card */}
-          {currentInstruction && (
-            <View style={styles.instructionCard}>
-              <View style={styles.instructionHeader}>
-                <View style={styles.scoreContainer}>
-                  <Text style={styles.scoreLabel}>Score</Text>
-                  <Text style={[
-                    styles.scoreValue,
-                    { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
-                  ]}>
-                    {aiFeedback?.score}
-                  </Text>
-                </View>
-                <View style={styles.progressDots}>
-                  {aiFeedback?.instructions.map((_, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.dot,
-                        idx === currentInstruction.step - 1 && styles.dotActive
-                      ]}
-                    />
-                  ))}
-                </View>
-              </View>
-
-              <Text style={styles.instructionText}>
-                {currentInstruction.text}
-              </Text>
-
-              {aiFeedback?.perfectShot && (
-                <View style={styles.perfectShotBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color="#4CD964" />
-                  <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Manual Feedback Button */}
-          <TouchableOpacity
-            style={styles.feedbackButton}
-            onPress={analyzeScene}
-            disabled={isAnalyzing}
-          >
-            <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
-            <Text style={styles.feedbackButtonText}>
-              {isAnalyzing ? "Analyzing..." : "Get Feedback"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Photo Thumbnail Preview */}
-          {showThumbnail && lastPhotoUri && (
-            <Animated.View
-              style={[
-                styles.thumbnailPreview,
-                {
-                  opacity: thumbnailAnim,
-                  transform: [{
-                    scale: thumbnailAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.5, 1],
-                    })
-                  }]
-                }
-              ]}
-            >
-              <TouchableOpacity onPress={() => setShowPhotoEditor(true)}>
-                <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
+          <SafeAreaView style={styles.uiContainer}>
+            {/* Top Controls */}
+            <View style={styles.topControls}>
+              <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
+                <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
               </TouchableOpacity>
-            </Animated.View>
-          )}
 
-          {/* Bottom Controls */}
-          <View style={styles.bottomControls}>
-            <View style={styles.spacer} />
-
-            <View style={styles.shutterContainer}>
+              {/* Context Badge */}
               <TouchableOpacity
-                style={styles.shutterButton}
-                onPress={takeHighResPicture}
+                style={styles.contextBadge}
+                onPress={() => setShowContextSelector(true)}
               >
-                <View style={styles.shutterInner} />
+                <Text style={styles.contextBadgeText}>
+                  {currentContext?.type || 'Set Context'} • {currentContext?.timeOfDay || 'Auto'}
+                </Text>
+                <Ionicons name="chevron-down" size={16} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
+                <Ionicons
+                  name={enableTorch ? "flash" : "flash-off"}
+                  size={28}
+                  color="white"
+                />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-              <Ionicons name="camera-reverse" size={32} color="white" />
-            </TouchableOpacity>
-          </View>
+            {/* Temporary Zoom Controls for Testing */}
+            <View style={styles.tempZoomControls}>
+              <TouchableOpacity
+                style={styles.zoomButton}
+                onPress={() => {
+                  const newZoom = Math.max(0, zoom - 0.1);
+                  setZoom(newZoom);
+                  setShowZoomIndicator(true);
+                  Animated.timing(zoomIndicatorAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }).start();
+                  setTimeout(() => {
+                    Animated.timing(zoomIndicatorAnim, {
+                      toValue: 0,
+                      duration: 300,
+                      useNativeDriver: true,
+                    }).start(() => setShowZoomIndicator(false));
+                  }, 1000);
+                }}
+              >
+                <Text style={styles.zoomButtonText}>-</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.zoomButton}
+                onPress={() => {
+                  const newZoom = Math.min(1, zoom + 0.1);
+                  setZoom(newZoom);
+                  setShowZoomIndicator(true);
+                  Animated.timing(zoomIndicatorAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    useNativeDriver: true,
+                  }).start();
+                  setTimeout(() => {
+                    Animated.timing(zoomIndicatorAnim, {
+                      toValue: 0,
+                      duration: 300,
+                      useNativeDriver: true,
+                    }).start(() => setShowZoomIndicator(false));
+                  }, 1000);
+                }}
+              >
+                <Text style={styles.zoomButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
 
-        </SafeAreaView>
+            {/* Reference Photo Indicator */}
+            {referencePhoto && (
+              <TouchableOpacity
+                style={styles.referenceIndicator}
+                onPress={() => setShowAnalysisModal(true)}
+                onLongPress={() => {
+                  Alert.alert(
+                    "Clear Reference",
+                    "Remove the current reference photo?",
+                    [
+                      { text: "Cancel", style: "cancel" },
+                      {
+                        text: "Clear",
+                        style: "destructive",
+                        onPress: () => clearReference()
+                      }
+                    ]
+                  );
+                }}
+              >
+                <Image
+                  source={{ uri: referencePhoto.uri }}
+                  style={styles.referenceThumbnail}
+                />
+                <View style={styles.referenceLabel}>
+                  <Ionicons name="image" size={12} color="white" />
+                  <Text style={styles.referenceLabelText}>REF</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {/* Grid Overlay */}
+            {showGrid && (
+              <View style={styles.gridContainer} pointerEvents="none">
+                <View style={[styles.gridLineVertical, { left: width / 3 }]} />
+                <View style={[styles.gridLineVertical, { left: width * 2 / 3 }]} />
+                <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
+                <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
+              </View>
+            )}
+
+            {/* Focus Indicator */}
+            {focusPoint && (
+              <Animated.View
+                style={[
+                  styles.focusIndicator,
+                  {
+                    left: focusPoint.x - 40,
+                    top: focusPoint.y - 40,
+                    opacity: focusAnim,
+                    transform: [{
+                      scale: focusAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1.5, 1],
+                      })
+                    }]
+                  }
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.focusBox} />
+              </Animated.View>
+            )}
+
+            {/* Zoom Indicator */}
+            {showZoomIndicator && (
+              <Animated.View
+                style={[
+                  styles.zoomIndicator,
+                  { opacity: zoomIndicatorAnim }
+                ]}
+                pointerEvents="none"
+              >
+                <View style={styles.zoomTrack}>
+                  <View style={[styles.zoomFill, { width: `${zoom * 100}%` }]} />
+                </View>
+                <Text style={styles.zoomText}>{Math.round(zoom * 10)}x</Text>
+              </Animated.View>
+            )}
+
+            {/* Visual Instruction Overlay */}
+            <VisualInstructionOverlay instructions={visualInstructions} />
+
+            {/* AI Instruction Card */}
+            {currentInstruction && (
+              <View style={styles.instructionCard}>
+                <View style={styles.instructionHeader}>
+                  <View style={styles.scoreContainer}>
+                    <Text style={styles.scoreLabel}>Score</Text>
+                    <Text style={[
+                      styles.scoreValue,
+                      { color: aiFeedback!.score > 80 ? '#4CD964' : aiFeedback!.score > 50 ? '#FFCC00' : '#FF3B30' }
+                    ]}>
+                      {aiFeedback?.score}
+                    </Text>
+                  </View>
+                  <View style={styles.progressDots}>
+                    {aiFeedback?.instructions.map((_, idx) => (
+                      <View
+                        key={idx}
+                        style={[
+                          styles.dot,
+                          idx === currentInstruction.step - 1 && styles.dotActive
+                        ]}
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                <Text style={styles.instructionText}>
+                  {currentInstruction.text}
+                </Text>
+
+                {aiFeedback?.perfectShot && (
+                  <View style={styles.perfectShotBadge}>
+                    <Ionicons name="checkmark-circle" size={20} color="#4CD964" />
+                    <Text style={styles.perfectShotText}>PERFECT SHOT!</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Manual Feedback Button */}
+            <TouchableOpacity
+              style={styles.feedbackButton}
+              onPress={analyzeScene}
+              disabled={isAnalyzing}
+            >
+              <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
+              <Text style={styles.feedbackButtonText}>
+                {isAnalyzing ? "Analyzing..." : "Get Feedback"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Photo Thumbnail Preview */}
+            {showThumbnail && lastPhotoUri && (
+              <Animated.View
+                style={[
+                  styles.thumbnailPreview,
+                  {
+                    opacity: thumbnailAnim,
+                    transform: [{
+                      scale: thumbnailAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.5, 1],
+                      })
+                    }]
+                  }
+                ]}
+              >
+                <TouchableOpacity onPress={() => setShowPhotoEditor(true)}>
+                  <Image source={{ uri: lastPhotoUri }} style={styles.thumbnailImage} />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+
+            {/* Bottom Controls */}
+            <View style={styles.bottomControls}>
+              <View style={styles.spacer} />
+
+              <View style={styles.shutterContainer}>
+                <TouchableOpacity
+                  style={styles.shutterButton}
+                  onPress={takeHighResPicture}
+                >
+                  <View style={styles.shutterInner} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+                <Ionicons name="camera-reverse" size={32} color="white" />
+              </TouchableOpacity>
+            </View>
+
+          </SafeAreaView>
         </CameraView>
       </View>
 
@@ -650,25 +699,27 @@ export default function AppCamera() {
       </Modal>
 
       {/* Photo Editor Modal */}
-      {showPhotoEditor && lastPhotoUri && (
-        <Modal
-          visible={showPhotoEditor}
-          animationType="slide"
-          presentationStyle="fullScreen"
-          onRequestClose={() => setShowPhotoEditor(false)}
-        >
-          <PhotoEditor
-            imageUri={lastPhotoUri}
-            aiProcessedImage={lastAIProcessedImage}
-            onClose={() => setShowPhotoEditor(false)}
-            onSave={(editedUri) => {
-              setLastPhotoUri(editedUri);
-              setShowPhotoEditor(false);
-            }}
-          />
-        </Modal>
-      )}
-    </View>
+      {
+        showPhotoEditor && lastPhotoUri && (
+          <Modal
+            visible={showPhotoEditor}
+            animationType="slide"
+            presentationStyle="fullScreen"
+            onRequestClose={() => setShowPhotoEditor(false)}
+          >
+            <PhotoEditor
+              imageUri={lastPhotoUri}
+              aiProcessedImage={lastAIProcessedImage}
+              onClose={() => setShowPhotoEditor(false)}
+              onSave={(editedUri) => {
+                setLastPhotoUri(editedUri);
+                setShowPhotoEditor(false);
+              }}
+            />
+          </Modal>
+        )
+      }
+    </View >
   );
 }
 
