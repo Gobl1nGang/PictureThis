@@ -38,7 +38,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
           <View style={styles.header}>
             <Text style={styles.title}>Photo Analysis</Text>
             <TouchableOpacity onPress={handleClose}>
-              <Ionicons name="close" size={24} color="#333" />
+              <Ionicons name="close" size={24} color="#8b7355" />
             </TouchableOpacity>
           </View>
 
@@ -53,7 +53,7 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
 
           {loading && (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#007AFF" />
+              <ActivityIndicator size="large" color="#bba06b" />
               <Text style={styles.loadingText}>Analyzing photo...</Text>
             </View>
           )}
@@ -113,13 +113,13 @@ export const AnalysisModal: React.FC<AnalysisModalProps> = ({ visible, onClose, 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(139, 115, 85, 0.7)',
     justifyContent: 'flex-end',
   },
   content: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    backgroundColor: '#e5e0ca',
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
     maxHeight: '80%',
     minHeight: 300,
   },
@@ -129,12 +129,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#d3c6a2',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 24,
+    fontWeight: '300',
+    fontFamily: 'Palatino',
+    color: '#8b7355',
+    letterSpacing: 1,
   },
   startContainer: {
     padding: 20,
@@ -142,20 +144,29 @@ const styles = StyleSheet.create({
   },
   startText: {
     fontSize: 16,
-    color: '#666',
+    color: '#8b7355',
     textAlign: 'center',
     marginBottom: 20,
+    fontFamily: 'Palatino',
+    lineHeight: 22,
   },
   analyzeButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#bba06b',
     paddingHorizontal: 30,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 20,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   analyzeButtonText: {
-    color: 'white',
+    color: '#5a4f3a',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '300',
+    fontFamily: 'Palatino',
+    letterSpacing: 0.5,
   },
   loadingContainer: {
     padding: 40,
@@ -164,36 +175,49 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: '#8b7355',
+    fontFamily: 'Palatino',
   },
   analysisContainer: {
     padding: 20,
   },
   analysisItem: {
     marginBottom: 16,
+    backgroundColor: '#d3c6a2',
+    padding: 12,
+    borderRadius: 15,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    color: '#8b7355',
     marginBottom: 4,
+    fontFamily: 'Palatino',
   },
   value: {
     fontSize: 16,
-    color: '#333',
+    color: '#5a4f3a',
     lineHeight: 22,
+    fontFamily: 'Palatino',
   },
   setReferenceButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#bba06b',
     paddingVertical: 12,
     paddingHorizontal: 30,
-    borderRadius: 8,
+    borderRadius: 20,
     alignSelf: 'center',
     marginTop: 20,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   setReferenceButtonText: {
-    color: 'white',
+    color: '#5a4f3a',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '300',
+    fontFamily: 'Palatino',
+    letterSpacing: 0.5,
   },
 });

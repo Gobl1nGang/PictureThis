@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -11,7 +11,8 @@ import {
   ActivityIndicator, 
   Modal, 
   Alert,
-  SafeAreaView 
+  SafeAreaView,
+  Animated 
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
@@ -66,10 +67,31 @@ export default function InspoScreen() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [likedPhotos, setLikedPhotos] = useState<Set<number>>(new Set());
   const [dislikedPhotos, setDislikedPhotos] = useState<Set<number>>(new Set());
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
 
   // Load default curated photos on component mount
   useEffect(() => {
     loadCuratedPhotos();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 120,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   // Load curated photos (Instagram-style feed)
@@ -368,12 +390,22 @@ export default function InspoScreen() {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header with search bar */}
-      <View style={styles.header}>
-        <View style={styles.searchContainer}>
+      <Animated.View style={[styles.header, {
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }]
+      }]}>
+        <Animated.View style={[styles.searchContainer, {
+          transform: [{ scale: scaleAnim }]
+        }]}>
           <Text style={styles.headerTitle}>Inspiration</Text>
-        </View>
+        </Animated.View>
         
-        <View style={styles.searchContainer}>
+        <Animated.View style={[styles.searchContainer, {
+          transform: [{ translateY: slideAnim.interpolate({
+            inputRange: [0, 30],
+            outputRange: [0, 20]
+          }) }]
+        }]}>
           <TextInput
             style={styles.searchInput}
             placeholder="Search for inspiration..."
@@ -387,6 +419,7 @@ export default function InspoScreen() {
             style={styles.searchButton}
             onPress={handleSearch}
             disabled={loading}
+            activeOpacity={0.8}
           >
             {loading ? (
               <ActivityIndicator size="small" color="white" />
@@ -394,8 +427,8 @@ export default function InspoScreen() {
               <Ionicons name="search" size={20} color="white" />
             )}
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
 
       {/* Main content area */}
       <View style={styles.content}>
@@ -474,21 +507,20 @@ export default function InspoScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#ffffff',
   },
   header: {
-    backgroundColor: '#e5e0ca',
-    paddingTop: 10,
+    backgroundColor: '#f8f9fa',
+    paddingTop: 25,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#d0c9a8',
+    paddingBottom: 35,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
   headerTitle: {
     fontSize: 36,
     fontWeight: 'bold',
-    fontFamily: 'Georgia-Bold',
-    color: '#b19068',
+    color: '#000000',
     marginBottom: 15,
     paddingLeft: 10,
   },
@@ -499,25 +531,35 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: 44,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 22,
-    paddingHorizontal: 20,
+    height: 52,
+    backgroundColor: 'rgba(240, 240, 240, 0.95)',
+    borderRadius: 35,
+    paddingHorizontal: 28,
     fontSize: 16,
-    fontFamily: 'Georgia',
     color: '#333',
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 0,
   },
   searchButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#bba06b',
-    borderRadius: 22,
+    width: 52,
+    height: 52,
+    backgroundColor: '#22c55e',
+    borderRadius: 35,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
   },
   content: {
     flex: 1,
-    backgroundColor: '#d3c6a2',
+    backgroundColor: '#ffffff',
   },
   loadingContainer: {
     flex: 1,
@@ -585,6 +627,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#f0f0f0',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   photoImage: {
     width: '100%',
@@ -609,9 +656,12 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   instagramPhotoItem: {
-    width: width,
+    width: width - 6,
     height: width * 1.25,
-    marginBottom: 1,
+    marginBottom: 3,
+    marginHorizontal: 3,
+    borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: '#f0f0f0',
   },
   instagramPhotoImage: {
@@ -654,36 +704,56 @@ const styles = StyleSheet.create({
   },
   // Like button styles
   likeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 36,
+    height: 36,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   dislikeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 36,
+    height: 36,
+    borderRadius: 25,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   instagramLikeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 44,
+    height: 44,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   instagramDislikeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 44,
+    height: 44,
+    borderRadius: 30,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalContainer: {
     flex: 1,
@@ -701,7 +771,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 25,
     backgroundColor: 'rgba(187,160,107,0.9)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -713,7 +783,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 25,
     backgroundColor: 'rgba(187,160,107,0.9)',
     justifyContent: 'center',
     alignItems: 'center',

@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform, Modal, SafeAreaView, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, Image, Dimensions, TouchableOpacity, Platform, Modal, SafeAreaView, Alert, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
-import PhotoEditor from './PhotoEditor';
+
 
 const { width } = Dimensions.get('window');
 const numColumns = 3;
@@ -25,10 +25,9 @@ export default function PhotosScreen() {
   const [selectedPhoto, setSelectedPhoto] = useState<MediaLibrary.Asset | null>(null);
   const [analysisModalVisible, setAnalysisModalVisible] = useState(false);
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
-
-  // Editor state
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [editorImageUri, setEditorImageUri] = useState<string | null>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   // Detect if running on Expo Go
   const isExpoGo = Constants.appOwnership === 'expo';
@@ -44,6 +43,27 @@ export default function PhotosScreen() {
       loadPhotos();
     }
   }, [permission?.granted]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Function to resolve ph:// URIs to usable file URIs
   const resolveAssetUri = async (asset: MediaLibrary.Asset): Promise<string> => {
@@ -189,27 +209,7 @@ export default function PhotosScreen() {
     }
   };
 
-  const handleEditPhoto = async (photo: MediaLibrary.Asset) => {
-    try {
-      const resolvedUri = await resolveAssetUri(photo);
-      setEditorImageUri(resolvedUri);
-      setEditorVisible(true);
-      closePhotoModal();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load photo for editing');
-    }
-  };
 
-  const handleEditorClose = () => {
-    setEditorVisible(false);
-    setEditorImageUri(null);
-  };
-
-  const handleEditorSave = (editedUri: string) => {
-    // Refresh photos to show the newly saved edit
-    loadPhotos();
-    handleEditorClose();
-  };
 
   const addPhotosFromLibrary = async () => {
     try {
@@ -244,15 +244,7 @@ export default function PhotosScreen() {
     }
   };
 
-  if (editorVisible && editorImageUri) {
-    return (
-      <PhotoEditor
-        imageUri={editorImageUri}
-        onClose={handleEditorClose}
-        onSave={handleEditorSave}
-      />
-    );
-  }
+
 
   if (!permission) {
     return (
@@ -356,55 +348,74 @@ export default function PhotosScreen() {
 
   return (
     <SafeAreaView style={styles.screenContainer}>
-      {/* Decorative border elements */}
-      <View style={styles.topDecoration}>
-        <Text style={styles.decorativeText}>✦ ✧ ✦</Text>
-      </View>
 
-      <View style={styles.bottomDecoration}>
-        <Text style={styles.decorativeText}>✦ ✧ ✦</Text>
-      </View>
 
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, {
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }]
+      }]}>
         {selectionMode ? (
-          <View style={styles.selectionHeader}>
-            <TouchableOpacity onPress={cancelSelection}>
+          <Animated.View style={[styles.selectionHeader, {
+            transform: [{ scale: scaleAnim }]
+          }]}>
+            <TouchableOpacity onPress={cancelSelection} style={styles.modernButton}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <Text style={styles.selectedCountText}>
+            <Animated.Text style={[styles.selectedCountText, {
+              transform: [{ scale: scaleAnim }]
+            }]}>
               {selectedPhotos.size} selected
-            </Text>
+            </Animated.Text>
             <TouchableOpacity
               onPress={deleteSelectedPhotos}
               disabled={selectedPhotos.size === 0}
+              style={[styles.modernButton, styles.deleteButton]}
             >
               <Text style={[styles.deleteText, selectedPhotos.size === 0 && styles.disabledText]}>
                 Delete
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         ) : (
-          <View style={styles.normalHeader}>
-            <View>
+          <Animated.View style={[styles.normalHeader, {
+            transform: [{ scale: scaleAnim }]
+          }]}>
+            <Animated.View style={{
+              transform: [{
+                translateX: slideAnim.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, -30]
+                })
+              }]
+            }}>
               <Text style={styles.headerText}>Photos</Text>
-            </View>
-            <View style={styles.headerButtons}>
+            </Animated.View>
+            <Animated.View style={[styles.headerButtons, {
+              transform: [{
+                translateX: slideAnim.interpolate({
+                  inputRange: [0, 50],
+                  outputRange: [0, 30]
+                })
+              }]
+            }]}>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={addPhotosFromLibrary}
+                activeOpacity={0.8}
               >
                 <Text style={styles.addButtonText}>Add</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.selectButton}
                 onPress={() => setSelectionMode(true)}
+                activeOpacity={0.8}
               >
                 <Text style={styles.selectButtonText}>Select</Text>
               </TouchableOpacity>
-            </View>
-          </View>
+            </Animated.View>
+          </Animated.View>
         )}
-      </View>
+      </Animated.View>
 
       <FlatList
         data={photos}
@@ -443,17 +454,7 @@ export default function PhotosScreen() {
                   <Ionicons name="close" size={30} color="white" />
                 </TouchableOpacity>
 
-                <View style={styles.modalControls}>
-                  <TouchableOpacity
-                    style={styles.editButton}
-                    onPress={() => handleEditPhoto(selectedPhoto)}
-                  >
-                    <Ionicons name="create-outline" size={24} color="white" />
-                    <Text style={styles.editButtonText}>Edit</Text>
-                  </TouchableOpacity>
-
-                  <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
-                </View>
+                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
 
                 <PhotoModalContent photo={selectedPhoto} />
               </>
@@ -474,31 +475,29 @@ export default function PhotosScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
   },
   screenContainer: {
     flex: 1,
-    backgroundColor: '#e5e0ca',
+    backgroundColor: '#ffffff',
   },
   header: {
-    paddingTop: 10,
+    paddingTop: 25,
     paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#d3c6a2',
+    paddingBottom: 35,
+    backgroundColor: '#f8f9fa',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#e5e7eb',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
   headerText: {
-    fontSize: 42,
-    fontWeight: '300',
-    fontFamily: 'Snell Roundhand',
-    color: '#8b7355',
-    letterSpacing: 2,
-    textShadowColor: 'rgba(139, 115, 85, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    fontSize: 32,
+    fontWeight: '600',
+    color: '#000000',
+    letterSpacing: 0.5,
   },
   countText: {
     fontSize: 14,
@@ -509,10 +508,9 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 18,
-    color: '#8b7355',
+    color: '#000000',
     textAlign: 'center',
     marginBottom: 20,
-    fontFamily: 'Snell Roundhand',
     letterSpacing: 1,
   },
   button: {
@@ -534,20 +532,20 @@ const styles = StyleSheet.create({
   },
   photoContainer: {
     margin: 4,
-    borderRadius: 12,
-    shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
+    borderRadius: 30,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   photo: {
     width: imageSize - 8,
     height: imageSize - 8,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    borderRadius: 30,
     borderWidth: 2,
-    borderColor: '#d7d2bf',
+    borderColor: '#e5e7eb',
   },
   loadingFooter: {
     padding: 20,
@@ -572,49 +570,66 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: '#bba06b',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#b19068',
-    shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  addButtonText: {
-    color: '#5a4f3a',
-    fontSize: 18,
-    fontWeight: '300',
-    fontFamily: 'Palatino',
-    letterSpacing: 1,
-  },
-  selectButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     backgroundColor: 'transparent',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#b19068',
+    borderColor: '#22c55e',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonText: {
+    color: '#22c55e',
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  selectButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#22c55e',
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   selectButtonText: {
-    color: '#8b7355',
-    fontSize: 18,
-    fontWeight: '300',
-    fontFamily: 'Palatino',
-    letterSpacing: 1,
+    color: '#22c55e',
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  modernButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderColor: '#FF3B30',
   },
   cancelText: {
-    color: '#007AFF',
+    color: '#22c55e',
     fontSize: 16,
     fontWeight: '600',
   },
   selectedCountText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#000000',
   },
   deleteText: {
     color: '#FF3B30',
@@ -677,28 +692,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalControls: {
-    position: 'absolute',
-    top: 50,
-    left: 20,
-    zIndex: 1,
-    flexDirection: 'row',
-    gap: 12,
-  },
-  editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  editButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
   modalImage: {
     width: width - 40,
     height: '80%',
@@ -714,30 +708,6 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
   },
-  // Decorative border styles
-  topDecoration: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  bottomDecoration: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 1,
-  },
 
-  decorativeText: {
-    fontSize: 20,
-    color: '#b19068',
-    fontFamily: 'Snell Roundhand',
-    opacity: 0.6,
-    letterSpacing: 8,
-  },
 
 });
