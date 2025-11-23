@@ -10,6 +10,7 @@ import {
     Dimensions,
     ActivityIndicator,
     Alert,
+    TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
@@ -18,6 +19,9 @@ import { generateAIEnhancement, AIEnhancementResult } from '../services/imageEnh
 import { AIProcessedImage, createAdjustmentSliders } from '../services/aiImageProcessor';
 import { analyzePixelValues } from '../services/pixelAnalyzer';
 import { usePhotoContext } from '../contexts/PhotoContextContext';
+import { FilteredImage } from '../components/FilteredImage';
+import { FILTER_PRESETS, applyBedrockFilter } from '../services/bedrockImageFilter';
+import { SkiaFilteredImage } from '../components/SkiaFilteredImage';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { AdjustmentSlider } from '../types/index';
 import AdjustmentSliderComponent from '../components/AdjustmentSlider';
@@ -31,7 +35,7 @@ interface PhotoEditorProps {
     onSave?: (editedUri: string) => void;
 }
 
-type EditMode = 'ai' | 'crop' | 'adjust';
+type EditMode = 'ai' | 'crop' | 'adjust' | 'filters';
 
 const ASPECT_RATIOS = [
     { label: 'Free', value: null },
@@ -51,6 +55,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     const [hasChanges, setHasChanges] = useState(false);
     const [adjustmentSliders, setAdjustmentSliders] = useState<AdjustmentSlider[]>([]);
     const [currentAdjustments, setCurrentAdjustments] = useState<Record<string, number>>({});
+    const [filter, setFilter] = useState<string | undefined>(undefined);
+    const [customPrompt, setCustomPrompt] = useState('');
+    const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
 
     const { currentContext } = usePhotoContext();
     const { profile } = useUserProfile();
@@ -62,10 +69,10 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 suggestions: aiProcessedImage.suggestions,
                 reasoning: aiProcessedImage.reasoning,
             });
-            
+
             const sliders = createAdjustmentSliders(aiProcessedImage.adjustments);
             setAdjustmentSliders(sliders);
-            
+
             const initialAdjustments: Record<string, number> = {};
             sliders.forEach(slider => {
                 initialAdjustments[slider.key] = slider.value;
@@ -227,7 +234,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             </Text>
                         </View>
                     )}
-                    
+
                     <View style={styles.noteCard}>
                         <Ionicons name="information-circle-outline" size={20} color="#666" />
                         <Text style={styles.noteText}>
@@ -266,7 +273,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         setCurrentAdjustments(newAdjustments);
         setHasChanges(true);
         console.log('Adjustment changed:', { [key]: value, allAdjustments: newAdjustments });
-        
+
         // Analyze pixel values
         const pixelSamples = await analyzePixelValues(currentImageUri, 5);
         console.log('Current pixel samples:', pixelSamples);
@@ -287,7 +294,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         console.log('Reset button clicked');
         console.log('Current adjustmentSliders:', adjustmentSliders);
         console.log('Current adjustments before reset:', currentAdjustments);
-        
+
         if (adjustmentSliders.length > 0) {
             const resetValues: Record<string, number> = {};
             adjustmentSliders.forEach(slider => {
@@ -314,7 +321,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                                 <Text style={styles.resetAdjustmentsText}>Reset to AI</Text>
                             </TouchableOpacity>
                         </View>
-                        
+
                         {adjustmentSliders.map((slider) => (
                             <AdjustmentSliderComponent
                                 key={slider.key}
@@ -323,11 +330,11 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                                 onValueChange={(value) => handleAdjustmentChange(slider.key, value)}
                             />
                         ))}
-                        
+
                         <View style={styles.divider} />
                     </>
                 )}
-                
+
                 <Text style={styles.sectionTitle}>Transform</Text>
                 <View style={styles.rotateButtons}>
                     <TouchableOpacity style={styles.actionButton} onPress={() => handleRotate(-90)}>
@@ -361,6 +368,143 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         </View>
     );
 
+    const renderFiltersMode = () => (
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>AI Filters</Text>
+            <Text style={styles.sectionSubtitle}>Apply AI-powered filters to your image</Text>
+
+            <View style={styles.filterGrid}>
+                {Object.entries(FILTER_PRESETS).map(([key, preset]) => (
+                    <TouchableOpacity
+                        key={key}
+                        style={[
+                            styles.filterButton,
+                            filter === key && styles.filterButtonActive
+                        ]}
+                        onPress={() => {
+                            // Option 1: Client-side Skia filter (Instant)
+                            setFilter(key);
+                            setHasChanges(true);
+                        }}
+                    >
+                        <Text style={styles.filterButtonText}>{preset.name}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {filter && (
+                <TouchableOpacity
+                    style={styles.clearFilterButton}
+                    onPress={() => {
+                        setFilter(undefined);
+                    }}
+                >
+                    <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                    <Text style={styles.clearFilterText}>Clear Filter</Text>
+                </TouchableOpacity>
+            )}
+
+            <View style={styles.divider} />
+
+            <Text style={styles.sectionTitle}>Custom Prompt</Text>
+            <Text style={styles.sectionSubtitle}>Describe how you want to transform the image</Text>
+
+            <TextInput
+                style={styles.promptInput}
+                placeholder="E.g., 'Make it look like a sunset', 'Add vintage film grain'..."
+                placeholderTextColor="#666"
+                multiline
+                numberOfLines={3}
+                value={customPrompt}
+                onChangeText={setCustomPrompt}
+            />
+
+            <TouchableOpacity
+                style={[styles.applyPromptButton, !customPrompt && styles.applyPromptButtonDisabled]}
+                disabled={!customPrompt || isProcessing}
+                onPress={async () => {
+                    if (!customPrompt) return;
+                    setIsProcessing(true);
+                    try {
+                        const filteredUri = await applyBedrockFilter(
+                            imageUri,
+                            undefined,
+                            customPrompt,
+                            currentAdjustments
+                        );
+                        setCurrentImageUri(filteredUri);
+                        setHasChanges(true);
+                        setCustomPrompt('');
+                    } catch (error) {
+                        console.error('Custom filter failed:', error);
+                        Alert.alert('Error', 'Failed to apply custom filter');
+                    } finally {
+                        setIsProcessing(false);
+                    }
+                }}
+            >
+                {isProcessing ? (
+                    <ActivityIndicator color="#fff" />
+                ) : (
+                    <>
+                        <Ionicons name="sparkles" size={20} color="#fff" />
+                        <Text style={styles.applyPromptButtonText}>Apply Custom Filter</Text>
+                    </>
+                )}
+            </TouchableOpacity>
+        </ScrollView>
+    );
+
+    const renderImage = () => {
+        if (!currentImageUri) return null;
+
+        return (
+            <View
+                style={styles.imageContainer}
+                onLayout={(event) => {
+                    const { width, height } = event.nativeEvent.layout;
+                    setImageDimensions({ width, height });
+                }}
+            >
+                {filter && imageDimensions.width > 0 ? (
+                    <SkiaFilteredImage
+                        uri={currentImageUri}
+                        filterPreset={filter}
+                        width={imageDimensions.width}
+                        height={imageDimensions.height}
+                    />
+                ) : (
+                    <Image
+                        source={{ uri: currentImageUri }}
+                        style={styles.image}
+                        resizeMode="contain"
+                    />
+                )}
+
+                {/* Image status indicator */}
+                {aiProcessedImage && (
+                    <View style={styles.imageStatusContainer}>
+                        <View style={[
+                            styles.imageStatusBadge,
+                            currentImageUri === aiProcessedImage.originalUri
+                                ? styles.originalBadge
+                                : styles.enhancedBadge
+                        ]}>
+                            <Ionicons
+                                name={currentImageUri === aiProcessedImage.originalUri ? "image-outline" : "sparkles"}
+                                size={12}
+                                color="white"
+                            />
+                            <Text style={styles.imageStatusText}>
+                                {currentImageUri === aiProcessedImage.originalUri ? "Original" : "AI Enhanced"}
+                            </Text>
+                        </View>
+                    </View>
+                )}
+            </View>
+        );
+    };
+
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -377,34 +521,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 </TouchableOpacity>
             </View>
 
-            <View style={styles.imageContainer}>
-                <Image
-                    source={{ uri: currentImageUri }}
-                    style={styles.image}
-                    resizeMode="contain"
-                />
-                
-                {/* Image status indicator */}
-                {aiProcessedImage && (
-                    <View style={styles.imageStatusContainer}>
-                        <View style={[
-                            styles.imageStatusBadge,
-                            currentImageUri === aiProcessedImage.originalUri 
-                                ? styles.originalBadge 
-                                : styles.enhancedBadge
-                        ]}>
-                            <Ionicons 
-                                name={currentImageUri === aiProcessedImage.originalUri ? "image-outline" : "sparkles"} 
-                                size={12} 
-                                color="white" 
-                            />
-                            <Text style={styles.imageStatusText}>
-                                {currentImageUri === aiProcessedImage.originalUri ? "Original" : "AI Enhanced"}
-                            </Text>
-                        </View>
-                    </View>
-                )}
-            </View>
+            {renderImage()}
 
             <View style={styles.tabsContainer}>
                 <TouchableOpacity
@@ -416,16 +533,22 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.tab, editMode === 'adjust' && styles.tabActive]}
                     onPress={() => setEditMode('adjust')}
+                    style={[styles.tab, editMode === 'adjust' && styles.tabActive]}
                 >
                     <Ionicons name="options" size={20} color={editMode === 'adjust' ? '#007AFF' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'adjust' && styles.tabTextActive]}>Adjust</Text>
                 </TouchableOpacity>
-
                 <TouchableOpacity
-                    style={[styles.tab, editMode === 'crop' && styles.tabActive]}
+                    onPress={() => setEditMode('filters')}
+                    style={[styles.tab, editMode === 'filters' && styles.tabActive]}
+                >
+                    <Ionicons name="color-palette" size={20} color={editMode === 'filters' ? '#007AFF' : '#666'} />
+                    <Text style={[styles.tabText, editMode === 'filters' && styles.tabTextActive]}>Filters</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                     onPress={() => setEditMode('crop')}
+                    style={[styles.tab, editMode === 'crop' && styles.tabActive]}
                 >
                     <Ionicons name="crop" size={20} color={editMode === 'crop' ? '#007AFF' : '#666'} />
                     <Text style={[styles.tabText, editMode === 'crop' && styles.tabTextActive]}>Crop</Text>
@@ -436,6 +559,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 {editMode === 'ai' && renderAIMode()}
                 {editMode === 'crop' && renderCropMode()}
                 {editMode === 'adjust' && renderAdjustMode()}
+                {editMode === 'filters' && renderFiltersMode()}
             </View>
 
             {hasChanges && (
@@ -787,6 +911,77 @@ const styles = StyleSheet.create({
     imageStatusText: {
         fontSize: 10,
         color: 'white',
+        fontWeight: '600',
+    },
+    sectionSubtitle: {
+        fontSize: 13,
+        color: '#999',
+        marginBottom: 15,
+    },
+    filterGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 10,
+        marginBottom: 15,
+    },
+    filterButton: {
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        backgroundColor: '#1C1C1E',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    filterButtonActive: {
+        backgroundColor: '#007AFF',
+        borderColor: '#007AFF',
+    },
+    filterButtonText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    clearFilterButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 12,
+        backgroundColor: '#1C1C1E',
+        borderRadius: 8,
+        gap: 8,
+        marginBottom: 15,
+    },
+    clearFilterText: {
+        color: '#FF3B30',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    promptInput: {
+        backgroundColor: '#1C1C1E',
+        borderRadius: 8,
+        padding: 15,
+        color: '#fff',
+        fontSize: 14,
+        minHeight: 80,
+        textAlignVertical: 'top',
+        marginBottom: 15,
+    },
+    applyPromptButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#007AFF',
+        padding: 15,
+        borderRadius: 8,
+        gap: 8,
+    },
+    applyPromptButtonDisabled: {
+        backgroundColor: '#333',
+        opacity: 0.5,
+    },
+    applyPromptButtonText: {
+        color: '#fff',
+        fontSize: 16,
         fontWeight: '600',
     },
 });
