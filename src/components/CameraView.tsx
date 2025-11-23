@@ -347,53 +347,7 @@ export default function AppCamera() {
             </TouchableOpacity>
           </View>
 
-          {/* Temporary Zoom Controls for Testing */}
-          <View style={styles.tempZoomControls}>
-            <TouchableOpacity 
-              style={styles.zoomButton}
-              onPress={() => {
-                const newZoom = Math.max(0, zoom - 0.1);
-                setZoom(newZoom);
-                setShowZoomIndicator(true);
-                Animated.timing(zoomIndicatorAnim, {
-                  toValue: 1,
-                  duration: 200,
-                  useNativeDriver: true,
-                }).start();
-                setTimeout(() => {
-                  Animated.timing(zoomIndicatorAnim, {
-                    toValue: 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => setShowZoomIndicator(false));
-                }, 1000);
-              }}
-            >
-              <Text style={styles.zoomButtonText}>-</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.zoomButton}
-              onPress={() => {
-                const newZoom = Math.min(1, zoom + 0.1);
-                setZoom(newZoom);
-                setShowZoomIndicator(true);
-                Animated.timing(zoomIndicatorAnim, {
-                  toValue: 1,
-                  duration: 200,
-                  useNativeDriver: true,
-                }).start();
-                setTimeout(() => {
-                  Animated.timing(zoomIndicatorAnim, {
-                    toValue: 0,
-                    duration: 300,
-                    useNativeDriver: true,
-                  }).start(() => setShowZoomIndicator(false));
-                }, 1000);
-              }}
-            >
-              <Text style={styles.zoomButtonText}>+</Text>
-            </TouchableOpacity>
-          </View>
+
 
           {/* Reference Photo Indicator */}
           {referencePhoto && (
@@ -973,26 +927,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
-  tempZoomControls: {
-    position: 'absolute',
-    top: 200,
-    left: 20,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  zoomButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  zoomButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+
   modalContainer: {
     flex: 1,
     backgroundColor: '#f5f5f5',

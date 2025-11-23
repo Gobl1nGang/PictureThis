@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 export default function SettingsScreen() {
   // Basic Settings State
@@ -19,6 +21,41 @@ export default function SettingsScreen() {
   const [soundEffects, setSoundEffects] = useState(false);
   const [photoAnalysis, setPhotoAnalysis] = useState('Local only');
   const [usageAnalytics, setUsageAnalytics] = useState(false);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const advancedAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const toggleAdvanced = () => {
+    setShowAdvanced(!showAdvanced);
+    Animated.timing(advancedAnim, {
+      toValue: showAdvanced ? 0 : 1,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
 
   const SettingRow = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <View style={styles.settingRow}>
@@ -61,12 +98,23 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerText}>Settings</Text>
-      </View>
+      <Animated.View style={[styles.header, {
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim }]
+      }]}>
+        <Animated.Text style={[styles.headerText, {
+          transform: [{ scale: scaleAnim }]
+        }]}>Settings</Animated.Text>
+      </Animated.View>
 
       {/* Basic Settings */}
-      <View style={styles.section}>
+      <Animated.View style={[styles.section, {
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim.interpolate({
+          inputRange: [0, 50],
+          outputRange: [0, 30]
+        }) }]
+      }]}>
         <Text style={styles.sectionTitle}>Basic Settings</Text>
         
         <SettingRow title="AI Feedback Frequency">
@@ -108,24 +156,48 @@ export default function SettingsScreen() {
             onSelect={setPhotoQuality}
           />
         </SettingRow>
-      </View>
+      </Animated.View>
 
       {/* Advanced Settings Toggle */}
-      <TouchableOpacity 
-        style={styles.advancedToggle}
-        onPress={() => setShowAdvanced(!showAdvanced)}
-      >
-        <Text style={styles.advancedToggleText}>Advanced Settings</Text>
-        <Ionicons 
-          name={showAdvanced ? 'chevron-up' : 'chevron-down'} 
-          size={20} 
-          color="#B8860B" 
-        />
-      </TouchableOpacity>
+      <Animated.View style={{
+        opacity: fadeAnim,
+        transform: [{ translateY: slideAnim.interpolate({
+          inputRange: [0, 50],
+          outputRange: [0, 40]
+        }) }]
+      }}>
+        <TouchableOpacity 
+          style={styles.advancedToggle}
+          onPress={toggleAdvanced}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.advancedToggleText}>Advanced Settings</Text>
+          <Animated.View style={{
+            transform: [{ rotate: advancedAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0deg', '180deg']
+            }) }]
+          }}>
+            <Ionicons 
+              name="chevron-down" 
+              size={20} 
+              color="#B8860B" 
+            />
+          </Animated.View>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* Advanced Settings */}
       {showAdvanced && (
-        <View style={styles.section}>
+        <Animated.View style={[styles.section, {
+          opacity: advancedAnim,
+          transform: [{
+            translateY: advancedAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [-20, 0]
+            })
+          }]
+        }]}>
           <SettingRow title="Analysis Focus">
             <DropdownButton 
               value={analysisFocus}
@@ -187,7 +259,7 @@ export default function SettingsScreen() {
               <Text style={styles.clearButtonText}>Clear Cache</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
       )}
 
       <View style={styles.footer}>
@@ -209,39 +281,38 @@ const styles = StyleSheet.create({
     backgroundColor: '#d3c6a2',
     borderBottomWidth: 1,
     borderBottomColor: '#b19068',
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
   },
   headerText: {
-    fontSize: 28,
-    fontWeight: '400',
-    fontFamily: 'Courier New',
+    fontSize: 32,
+    fontWeight: '600',
     color: '#8B7355',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   section: {
     backgroundColor: '#d7d2bf',
     marginTop: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginHorizontal: 10,
+    paddingVertical: 20,
+    borderRadius: 35,
+    marginHorizontal: width * 0.04,
     shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 0,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    fontFamily: 'Courier New',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#8B7355',
     paddingHorizontal: 20,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#E8DCC0',
     marginBottom: 10,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   settingRow: {
     flexDirection: 'row',
@@ -253,23 +324,26 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F2EDD7',
   },
   settingTitle: {
-    fontSize: 15,
-    fontWeight: '400',
-    fontFamily: 'Courier New',
+    fontSize: 16,
+    fontWeight: '500',
     color: '#6B5B47',
     flex: 1,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#bba06b',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-    minWidth: 100,
-    borderWidth: 1,
-    borderColor: '#b19068',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 25,
+    minWidth: 130,
+    borderWidth: 0,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
   dropdownText: {
     fontSize: 14,
@@ -281,24 +355,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: '#d7d2bf',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 28,
+    paddingVertical: 22,
     marginTop: 20,
-    marginHorizontal: 10,
-    borderRadius: 12,
+    marginHorizontal: width * 0.04,
+    borderRadius: 35,
     shadowColor: '#8b7355',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 0,
   },
   advancedToggleText: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '600',
-    fontFamily: 'Courier New',
     color: '#B8860B',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   buttonRow: {
     paddingHorizontal: 20,
@@ -315,22 +388,18 @@ const styles = StyleSheet.create({
   },
   clearButtonText: {
     color: '#FFFEF7',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    fontFamily: 'Courier New',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
   footer: {
     paddingVertical: 30,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '400',
-    fontFamily: 'Courier New',
     color: '#A0916B',
-    letterSpacing: 1.8,
-    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });
