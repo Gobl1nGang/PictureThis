@@ -42,7 +42,7 @@ export default function SettingsScreen() {
       }}
     >
       <Text style={styles.dropdownText}>{value}</Text>
-      <Ionicons name="chevron-down" size={16} color="#666" />
+      <Ionicons name="chevron-down" size={16} color="#8B7355" />
     </TouchableOpacity>
   );
 
@@ -97,7 +97,7 @@ export default function SettingsScreen() {
           <Switch 
             value={autoSave}
             onValueChange={setAutoSave}
-            trackColor={{ false: '#ccc', true: '#007AFF' }}
+            trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
           />
         </SettingRow>
 
@@ -119,7 +119,7 @@ export default function SettingsScreen() {
         <Ionicons 
           name={showAdvanced ? 'chevron-up' : 'chevron-down'} 
           size={20} 
-          color="#007AFF" 
+          color="#B8860B" 
         />
       </TouchableOpacity>
 
@@ -154,7 +154,7 @@ export default function SettingsScreen() {
             <Switch 
               value={hapticFeedback}
               onValueChange={setHapticFeedback}
-              trackColor={{ false: '#ccc', true: '#007AFF' }}
+              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
             />
           </SettingRow>
 
@@ -162,7 +162,7 @@ export default function SettingsScreen() {
             <Switch 
               value={soundEffects}
               onValueChange={setSoundEffects}
-              trackColor={{ false: '#ccc', true: '#007AFF' }}
+              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
             />
           </SettingRow>
 
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
             <Switch 
               value={usageAnalytics}
               onValueChange={setUsageAnalytics}
-              trackColor={{ false: '#ccc', true: '#007AFF' }}
+              trackColor={{ false: '#E8DCC0', true: '#B8860B' }}
             />
           </SettingRow>
 
@@ -200,35 +200,48 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#e5e0ca',
   },
   header: {
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 20,
-    backgroundColor: 'white',
+    backgroundColor: '#d3c6a2',
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#b19068',
   },
   headerText: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '400',
+    fontFamily: 'Courier New',
+    color: '#8B7355',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
   section: {
-    backgroundColor: 'white',
+    backgroundColor: '#d7d2bf',
     marginTop: 20,
     paddingVertical: 10,
+    borderRadius: 12,
+    marginHorizontal: 10,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    fontFamily: 'Courier New',
+    color: '#8B7355',
     paddingHorizontal: 20,
-    paddingBottom: 10,
+    paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#E8DCC0',
     marginBottom: 10,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
   settingRow: {
     flexDirection: 'row',
@@ -237,66 +250,87 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: '#F2EDD7',
   },
   settingTitle: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: 15,
+    fontWeight: '400',
+    fontFamily: 'Courier New',
+    color: '#6B5B47',
     flex: 1,
+    letterSpacing: 0.5,
   },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f8f8',
+    backgroundColor: '#bba06b',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
     minWidth: 100,
+    borderWidth: 1,
+    borderColor: '#b19068',
   },
   dropdownText: {
     fontSize: 14,
-    color: '#333',
+    color: '#6B5B47',
     marginRight: 8,
   },
   advancedToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'white',
+    backgroundColor: '#d7d2bf',
     paddingHorizontal: 20,
     paddingVertical: 15,
     marginTop: 20,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#eee',
+    marginHorizontal: 10,
+    borderRadius: 12,
+    shadowColor: '#8b7355',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   advancedToggleText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#007AFF',
+    fontFamily: 'Courier New',
+    color: '#B8860B',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   buttonRow: {
     paddingHorizontal: 20,
     paddingVertical: 15,
   },
   clearButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#8b7355',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#6b5b47',
   },
   clearButtonText: {
-    color: 'white',
-    fontSize: 16,
+    color: '#FFFEF7',
+    fontSize: 14,
     fontWeight: '600',
+    fontFamily: 'Courier New',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   footer: {
     paddingVertical: 30,
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: 12,
+    fontWeight: '400',
+    fontFamily: 'Courier New',
+    color: '#A0916B',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
   },
 });
