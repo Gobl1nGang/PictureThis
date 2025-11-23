@@ -5,8 +5,10 @@ import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingVi
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
-import { useReferencePhoto } from '../features/reference-photo';
-import { Ionicons } from '@expo/vector-icons';
+import { analyzePhotoForEditing } from '../services/editingAnalysis';
+import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
+import { StyleSuggestionModal } from './StyleSuggestionModal';
+import EditingScreen from '../screens/EditingScreen';
 
 const { width, height } = Dimensions.get('window');
 
@@ -24,6 +26,8 @@ export default function AppCamera() {
   const [showGrid, setShowGrid] = useState(false);
   const [enableTorch, setEnableTorch] = useState(false);
   const cameraRef = useRef<CameraView>(null);
+  const lastAnalysisTime = useRef<number>(0);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   // Reference photo functionality
   const { referencePhoto, isAnalyzing, setReference, clearReference } = useReferencePhoto();
@@ -33,6 +37,18 @@ export default function AppCamera() {
   // Photo thumbnail preview
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
+  
+  // Editing screen
+  const [showEditingScreen, setShowEditingScreen] = useState(false);
+  const [editingPhotoUri, setEditingPhotoUri] = useState<string | null>(null);
+  
+  // Debug editing screen state changes
+  useEffect(() => {
+    console.log('showEditingScreen changed to:', showEditingScreen);
+    if (showEditingScreen) {
+      console.log('Editing screen opened with URI:', editingPhotoUri);
+    }
+  }, [showEditingScreen, editingPhotoUri]);
 
   useEffect(() => {
     if (permission?.granted) {
@@ -75,7 +91,8 @@ export default function AppCamera() {
   }
 
   const analyzeScene = async () => {
-    if (cameraRef.current) {
+    if (cameraRef.current && isCameraReady) {
+      lastAnalysisTime.current = Date.now();
       try {
         const photo = await cameraRef.current.takePictureAsync({
           quality: 0.3,
@@ -140,112 +157,85 @@ export default function AppCamera() {
   }
 
   const takeHighResPicture = async () => {
-    if (cameraRef.current) {
-      try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 1.0,
-          skipProcessing: false,
-        });
+    console.log('takeHighResPicture called');
+    
+    if (!cameraRef.current) {
+      console.log('No camera ref');
+      return;
+    }
+    
+    if (!isCameraReady) {
+      console.log('Camera not ready yet');
+      Alert.alert('Camera Loading', 'Please wait for camera to initialize');
+      return;
+    }
+    
+    try {
+      console.log('Taking picture...');
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 1.0,
+        skipProcessing: false,
+      });
+      
+      console.log('Photo taken:', photo?.uri);
 
-        if (photo?.uri) {
-          // Show thumbnail preview
-          setLastPhotoUri(photo.uri);
-          setShowThumbnail(true);
-
-          // Hide thumbnail after 3 seconds
-          setTimeout(() => setShowThumbnail(false), 3000);
-
-          const asset = await MediaLibrary.createAssetAsync(photo.uri);
-          const album = await MediaLibrary.getAlbumAsync('PictureThis');
-
-          if (album == null) {
-            await MediaLibrary.createAlbumAsync('PictureThis', asset, false);
-          } else {
-            await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
-          }
-
-          Alert.alert("Saved!", "Photo saved to PictureThis album.");
-        }
-      } catch (error) {
-        Alert.alert("Error", "Failed to save photo.");
+      if (photo?.uri) {
+        console.log('Setting thumbnail...');
+        // Show thumbnail preview
+        setLastPhotoUri(photo.uri);
+        setShowThumbnail(true);
+        
+        // Hide thumbnail after 3 seconds
+        setTimeout(() => setShowThumbnail(false), 3000);
+      } else {
+        console.log('No photo URI');
       }
+    } catch (error) {
+      console.log('Error taking picture:', error);
+      Alert.alert("Error", "Failed to take photo.");
     }
   };
 
 
 
   return (
-    <View style={styles.container}>
-      <CameraView
-        style={styles.camera}
-        facing={facing}
-        ref={cameraRef}
-        zoom={zoom}
-        autofocus="on"
-        enableTorch={enableTorch}
-      >
-        <SafeAreaView style={styles.uiContainer}>
-          {/* Top Controls */}
-          <View style={styles.topControls}>
-            <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
-              <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
-              <Ionicons
-                name={enableTorch ? "flash" : "flash-off"}
-                size={28}
-                color="white"
-              />
-            </TouchableOpacity>
-          </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.container}
+    >
+      <View style={styles.cameraContainer}>
+        <CameraView
+          style={styles.camera}
+          facing={facing}
+          ref={cameraRef}
+          zoom={zoom}
+          autofocus="on"
+          onCameraReady={() => {
+            console.log('Camera ready');
+            setIsCameraReady(true);
+          }}
+        />
 
-          {/* Reference Photo Indicator */}
-          {referencePhoto && (
-            <TouchableOpacity
-              style={styles.referenceIndicator}
-              onPress={() => setShowAnalysisModal(true)}
-              onLongPress={() => {
-                Alert.alert(
-                  "Clear Reference",
-                  "Remove the current reference photo?",
-                  [
-                    { text: "Cancel", style: "cancel" },
-                    {
-                      text: "Clear",
-                      style: "destructive",
-                      onPress: () => {
-                        // Clear reference using the hook's clearReference function
-                        clearReference();
-                      }
-                    }
-                  ]
-                );
-              }}
-            >
-              <Image
-                source={{ uri: referencePhoto.uri }}
-                style={styles.referenceThumbnail}
-              />
-              <View style={styles.referenceLabel}>
-                <Ionicons name="image" size={12} color="white" />
-                <Text style={styles.referenceLabelText}>REF</Text>
-              </View>
-            </TouchableOpacity>
-          )}
+        {/* Rule of Thirds Grid */}
+        <View style={styles.gridContainer} pointerEvents="none">
+          <View style={[styles.gridLineVertical, { left: width / 3 }]} />
+          <View style={[styles.gridLineVertical, { left: width * 2 / 3 }]} />
+          <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
+          <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
+        </View>
 
-          {/* Grid Overlay */}
-          {showGrid && (
-            <View style={styles.gridContainer} pointerEvents="none">
-              <View style={[styles.gridLineVertical, { left: width / 3 }]} />
-              <View style={[styles.gridLineVertical, { left: width * 2 / 3 }]} />
-              <View style={[styles.gridLineHorizontal, { top: height / 3 }]} />
-              <View style={[styles.gridLineHorizontal, { top: height * 2 / 3 }]} />
-            </View>
-          )}
-
-          {/* AI Feedback Overlay - Persistent */}
-          {feedback.length > 0 && (
-            <View style={styles.feedbackContainer}>
+        <View style={styles.overlay}>
+          {/* Top Bar: Score & Style */}
+          <View style={styles.topBar}>
+            <View style={styles.topRow}>
+              <TouchableOpacity 
+                style={styles.styleSuggestionButton} 
+                onPress={() => setShowStyleModal(true)}
+              >
+                <Text style={styles.styleSuggestionText}>
+                  {style || (referencePhoto ? 'Photo Referenced' : 'Style Suggestion')}
+                </Text>
+              </TouchableOpacity>
               <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>Score</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
@@ -289,83 +279,46 @@ export default function AppCamera() {
               <Ionicons name="camera-reverse" size={32} color="white" />
             </TouchableOpacity>
           </View>
-
-        </SafeAreaView>
-      </CameraView>
-
+          
+          {/* Photo Thumbnail Preview */}
+          {showThumbnail && lastPhotoUri && (
+            <TouchableOpacity 
+              style={styles.thumbnailContainer}
+              onPress={() => {
+                console.log('Navigate to editing screen with:', lastPhotoUri);
+                setEditingPhotoUri(lastPhotoUri);
+                setShowEditingScreen(true);
+              }}
+            >
+              <Image source={{ uri: lastPhotoUri }} style={styles.thumbnail} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+      
       {/* Reference Analysis Modal */}
       <Modal
         visible={showAnalysisModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowAnalysisModal(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Reference Photo Analysis</Text>
-            <TouchableOpacity onPress={() => setShowAnalysisModal(false)}>
-              <Ionicons name="close" size={28} color="#333" />
-            </TouchableOpacity>
-          </View>
+        analysis={referencePhoto?.analysis || null}
+        isAnalyzing={isAnalyzing}
+        onClose={() => setShowAnalysisModal(false)}
+      />
 
-          <ScrollView style={styles.modalContent}>
-            {referencePhoto?.uri && (
-              <View style={styles.referenceImageContainer}>
-                <Image
-                  source={{ uri: referencePhoto.uri }}
-                  style={styles.referenceImage}
-                  resizeMode="contain"
-                />
-              </View>
-            )}
-
-            {referencePhoto?.analysis && (
-              <View style={styles.analysisDetails}>
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Type</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.pictureType}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Style</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.style}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Subject</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.subject}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Composition</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.composition}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Lighting</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.lighting}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Lens</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.lens}</Text>
-                </View>
-
-                <View style={styles.analysisRow}>
-                  <Text style={styles.analysisLabel}>Color Tone</Text>
-                  <Text style={styles.analysisValue}>{referencePhoto.analysis.colorTone}</Text>
-                </View>
-
-                <View style={styles.summarySection}>
-                  <Text style={styles.summaryLabel}>Summary</Text>
-                  <Text style={styles.summaryText}>{referencePhoto.analysis.summary}</Text>
-                </View>
-              </View>
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </View>
+      {/* Style Suggestion Modal */}
+      <StyleSuggestionModal
+        visible={showStyleModal}
+        onClose={() => setShowStyleModal(false)}
+        onStyleSelected={setStyle}
+      />
+      
+      {/* Editing Screen Modal */}
+      {showEditingScreen && editingPhotoUri && (
+        <EditingScreen
+          route={{ params: { photoUri: editingPhotoUri } }}
+          navigation={{ goBack: () => setShowEditingScreen(false) }}
+        />
+      )}
+    </KeyboardAvoidingView>
   );
 }
 
@@ -647,6 +600,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     color: '#333',
+  },
+  thumbnailContainer: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'white',
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
   },
 });
 
