@@ -9,52 +9,57 @@ export const transcribeAudio = async (audioUri: string): Promise<string> => {
         const response = await fetch(audioUri);
         const audioBuffer = await response.arrayBuffer();
         
-        // Convert to base64
+        // Optimize base64 conversion
         const uint8Array = new Uint8Array(audioBuffer);
-        let binaryString = '';
-        const chunkSize = 8192;
-        
-        for (let i = 0; i < uint8Array.length; i += chunkSize) {
-            const chunk = uint8Array.slice(i, i + chunkSize);
-            binaryString += String.fromCharCode(...chunk);
-        }
-        
-        const audioBase64 = btoa(binaryString);
+        const audioBase64 = btoa(String.fromCharCode(...uint8Array));
 
-        // Try Google Speech API
-        const speechResponse = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${GOOGLE_SPEECH_API_KEY}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                config: {
-                    encoding: 'WEBM_OPUS',
-                    sampleRateHertz: 48000,
-                    languageCode: 'en-US',
-                },
-                audio: {
-                    content: audioBase64,
-                },
-            }),
-        });
+        // Add 2-second timeout to Google API call
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
 
-        if (speechResponse.ok) {
-            const result = await speechResponse.json();
-            const transcript = result.results?.[0]?.alternatives?.[0]?.transcript;
-            
-            if (transcript && transcript.trim()) {
-                console.log('✅ Speech transcribed:', transcript);
-                return transcript;
+        try {
+            const speechResponse = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${GOOGLE_SPEECH_API_KEY}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    config: {
+                        encoding: 'WEBM_OPUS',
+                        sampleRateHertz: 48000,
+                        languageCode: 'en-US',
+                        model: 'latest_short',
+                        useEnhanced: true
+                    },
+                    audio: {
+                        content: audioBase64,
+                    },
+                }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            if (speechResponse.ok) {
+                const result = await speechResponse.json();
+                const transcript = result.results?.[0]?.alternatives?.[0]?.transcript;
+                
+                if (transcript && transcript.trim()) {
+                    console.log('✅ Speech transcribed:', transcript);
+                    return transcript;
+                }
+            }
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                console.log('⏱️ Speech API timeout - using default');
             }
         }
 
-        // If Google API fails, silently fall back to default
-        console.log('🔄 Speech transcription unavailable, using default question');
+        console.log('🔄 Using default photography question');
         return "What can I improve about this photo?";
         
     } catch (error) {
-        // Silent fallback - don't log errors to avoid console spam
         console.log('🔄 Using default photography question');
         return "What can I improve about this photo?";
     }
