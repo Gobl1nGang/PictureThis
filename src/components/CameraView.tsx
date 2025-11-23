@@ -1,7 +1,7 @@
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Dimensions, Alert, Modal, ScrollView, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, Image, Dimensions, Alert, Modal, ScrollView, SafeAreaView } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
@@ -22,10 +22,11 @@ export default function AppCamera() {
   const [score, setScore] = useState<number>(0);
   const [zoom, setZoom] = useState(0);
   const [showGrid, setShowGrid] = useState(false);
+  const [enableTorch, setEnableTorch] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
   // Reference photo functionality
-  const { referencePhoto, isAnalyzing, setReference } = useReferencePhoto();
+  const { referencePhoto, isAnalyzing, setReference, clearReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
 
   useEffect(() => {
@@ -42,6 +43,10 @@ export default function AppCamera() {
   }, [permission, setReference]);
 
   const toggleGrid = () => setShowGrid(!showGrid);
+
+  const toggleFlash = () => {
+    setEnableTorch(current => !current);
+  };
 
   // Manual analysis trigger
   const handleGetFeedback = async () => {
@@ -163,6 +168,7 @@ export default function AppCamera() {
         ref={cameraRef}
         zoom={zoom}
         autofocus="on"
+        enableTorch={enableTorch}
       >
         <SafeAreaView style={styles.uiContainer}>
           {/* Top Controls */}
@@ -170,10 +176,48 @@ export default function AppCamera() {
             <TouchableOpacity onPress={toggleGrid} style={styles.iconButton}>
               <Ionicons name={showGrid ? "grid" : "grid-outline"} size={28} color="white" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton}>
-              <Ionicons name="flash-off" size={28} color="white" />
+            <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
+              <Ionicons
+                name={enableTorch ? "flash" : "flash-off"}
+                size={28}
+                color="white"
+              />
             </TouchableOpacity>
           </View>
+
+          {/* Reference Photo Indicator */}
+          {referencePhoto && (
+            <TouchableOpacity
+              style={styles.referenceIndicator}
+              onPress={() => setShowAnalysisModal(true)}
+              onLongPress={() => {
+                Alert.alert(
+                  "Clear Reference",
+                  "Remove the current reference photo?",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    {
+                      text: "Clear",
+                      style: "destructive",
+                      onPress: () => {
+                        // Clear reference using the hook's clearReference function
+                        clearReference();
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Image
+                source={{ uri: referencePhoto.uri }}
+                style={styles.referenceThumbnail}
+              />
+              <View style={styles.referenceLabel}>
+                <Ionicons name="image" size={12} color="white" />
+                <Text style={styles.referenceLabelText}>REF</Text>
+              </View>
+            </TouchableOpacity>
+          )}
 
           {/* Grid Overlay */}
           {showGrid && (
@@ -216,9 +260,7 @@ export default function AppCamera() {
 
           {/* Bottom Controls */}
           <View style={styles.bottomControls}>
-            <TouchableOpacity style={styles.galleryButton}>
-              <View style={styles.galleryPreview} />
-            </TouchableOpacity>
+            <View style={styles.spacer} />
 
             <View style={styles.shutterContainer}>
               <TouchableOpacity
@@ -244,17 +286,70 @@ export default function AppCamera() {
         presentationStyle="pageSheet"
         onRequestClose={() => setShowAnalysisModal(false)}
       >
-        <View style={styles.modalContainer}>
+        <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Reference Analysis</Text>
+            <Text style={styles.modalTitle}>Reference Photo Analysis</Text>
             <TouchableOpacity onPress={() => setShowAnalysisModal(false)}>
-              <Ionicons name="close" size={28} color="black" />
+              <Ionicons name="close" size={28} color="#333" />
             </TouchableOpacity>
           </View>
+
           <ScrollView style={styles.modalContent}>
-            <Text style={styles.analysisText}>{referencePhoto?.analysis?.summary || "No analysis available."}</Text>
+            {referencePhoto?.uri && (
+              <View style={styles.referenceImageContainer}>
+                <Image
+                  source={{ uri: referencePhoto.uri }}
+                  style={styles.referenceImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+
+            {referencePhoto?.analysis && (
+              <View style={styles.analysisDetails}>
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Type</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.pictureType}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Style</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.style}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Subject</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.subject}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Composition</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.composition}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Lighting</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.lighting}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Lens</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.lens}</Text>
+                </View>
+
+                <View style={styles.analysisRow}>
+                  <Text style={styles.analysisLabel}>Color Tone</Text>
+                  <Text style={styles.analysisValue}>{referencePhoto.analysis.colorTone}</Text>
+                </View>
+
+                <View style={styles.summarySection}>
+                  <Text style={styles.summaryLabel}>Summary</Text>
+                  <Text style={styles.summaryText}>{referencePhoto.analysis.summary}</Text>
+                </View>
+              </View>
+            )}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
     </View>
   );
@@ -293,6 +388,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     paddingTop: 10,
+  },
+  referenceIndicator: {
+    position: 'absolute',
+    top: 80,
+    left: 20,
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: '#4CD964',
+    backgroundColor: '#000',
+  },
+  referenceThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  referenceLabel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(76, 217, 100, 0.9)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    gap: 2,
+  },
+  referenceLabelText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   gridContainer: {
     ...StyleSheet.absoluteFillObject,
@@ -357,17 +485,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 20,
   },
-  galleryButton: {
+  spacer: {
     width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    padding: 3,
-  },
-  galleryPreview: {
-    flex: 1,
-    borderRadius: 22,
-    backgroundColor: '#333',
   },
   shutterContainer: {
     borderWidth: 4,
@@ -437,12 +556,62 @@ const styles = StyleSheet.create({
     borderBottomColor: '#eee',
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#333',
   },
   modalContent: {
     flex: 1,
+  },
+  referenceImageContainer: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#000',
+    marginBottom: 20,
+  },
+  referenceImage: {
+    width: '100%',
+    height: '100%',
+  },
+  analysisDetails: {
     padding: 20,
+    paddingTop: 0,
+  },
+  analysisRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  analysisLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    flex: 1,
+  },
+  analysisValue: {
+    fontSize: 14,
+    color: '#333',
+    flex: 2,
+    textAlign: 'right',
+  },
+  summarySection: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: 'white',
+    borderRadius: 12,
+  },
+  summaryLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  summaryText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 22,
   },
   analysisText: {
     fontSize: 16,
