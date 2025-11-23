@@ -1,18 +1,12 @@
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState, useRef, useEffect } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, Image, Dimensions, Alert, Modal, ScrollView, SafeAreaView } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Image, Dimensions, Alert, Modal, ScrollView, SafeAreaView, TouchableWithoutFeedback } from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage } from '../services/bedrock';
 import { useReferencePhoto } from '../features/reference-photo';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform, Dimensions, Alert, TouchableWithoutFeedback, Image } from 'react-native';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import * as MediaLibrary from 'expo-media-library';
-import { analyzeImage } from '../services/bedrock';
-import { useReferencePhoto, ReferenceAnalysisModal } from '../features/reference-photo';
-import { StyleSuggestionModal } from './StyleSuggestionModal';
 
 const { width, height } = Dimensions.get('window');
 
@@ -35,7 +29,7 @@ export default function AppCamera() {
   const { referencePhoto, isAnalyzing, setReference, clearReference } = useReferencePhoto();
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showStyleModal, setShowStyleModal] = useState(false);
-  
+
   // Photo thumbnail preview
   const [lastPhotoUri, setLastPhotoUri] = useState<string | null>(null);
   const [showThumbnail, setShowThumbnail] = useState(false);
@@ -43,7 +37,7 @@ export default function AppCamera() {
   useEffect(() => {
     if (permission?.granted) {
       requestMediaPermission();
-      
+
       // Check for reference image from other screens
       if (global.referenceImageUri) {
         setReference(global.referenceImageUri);
@@ -157,10 +151,10 @@ export default function AppCamera() {
           // Show thumbnail preview
           setLastPhotoUri(photo.uri);
           setShowThumbnail(true);
-          
+
           // Hide thumbnail after 3 seconds
           setTimeout(() => setShowThumbnail(false), 3000);
-          
+
           const asset = await MediaLibrary.createAssetAsync(photo.uri);
           const album = await MediaLibrary.getAlbumAsync('PictureThis');
 
@@ -252,18 +246,6 @@ export default function AppCamera() {
           {/* AI Feedback Overlay - Persistent */}
           {feedback.length > 0 && (
             <View style={styles.feedbackContainer}>
-        <View style={styles.overlay}>
-          {/* Top Bar: Score & Style */}
-          <View style={styles.topBar}>
-            <View style={styles.topRow}>
-              <TouchableOpacity 
-                style={styles.styleSuggestionButton} 
-                onPress={() => setShowStyleModal(true)}
-              >
-                <Text style={styles.styleSuggestionText}>
-                  {style || (referencePhoto ? 'Photo Referenced' : 'Style Suggestion')}
-                </Text>
-              </TouchableOpacity>
               <View style={styles.scoreContainer}>
                 <Text style={styles.scoreLabel}>Score</Text>
                 <Text style={[styles.scoreValue, { color: score > 80 ? '#4CD964' : score > 50 ? '#FFCC00' : '#FF3B30' }]}>
@@ -311,9 +293,6 @@ export default function AppCamera() {
         </SafeAreaView>
       </CameraView>
 
-        </View>
-      </View>
-      
       {/* Reference Analysis Modal */}
       <Modal
         visible={showAnalysisModal}
@@ -387,18 +366,6 @@ export default function AppCamera() {
         </SafeAreaView>
       </Modal>
     </View>
-        analysis={referencePhoto?.analysis || null}
-        isAnalyzing={isAnalyzing}
-        onClose={() => setShowAnalysisModal(false)}
-      />
-
-      {/* Style Suggestion Modal */}
-      <StyleSuggestionModal
-        visible={showStyleModal}
-        onClose={() => setShowStyleModal(false)}
-        onStyleSelected={setStyle}
-      />
-    </KeyboardAvoidingView>
   );
 }
 
