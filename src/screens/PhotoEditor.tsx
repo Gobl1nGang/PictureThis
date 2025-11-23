@@ -22,6 +22,7 @@ import { usePhotoContext } from '../contexts/PhotoContextContext';
 import { FilteredImage } from '../components/FilteredImage';
 import { FILTER_PRESETS, applyBedrockFilter } from '../services/bedrockImageFilter';
 import { SkiaFilteredImage } from '../components/SkiaFilteredImage';
+import { applySkiaFilter } from '../services/skiaFilterService';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { AdjustmentSlider } from '../types/index';
 import AdjustmentSliderComponent from '../components/AdjustmentSlider';
@@ -159,7 +160,15 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
 
         setIsProcessing(true);
         try {
-            const asset = await MediaLibrary.createAssetAsync(currentImageUri);
+            let uriToSave = currentImageUri;
+
+            // If a preset filter is active, we need to bake it into the image
+            if (filter) {
+                console.log('Baking filter into image before saving:', filter);
+                uriToSave = await applySkiaFilter(currentImageUri, filter);
+            }
+
+            const asset = await MediaLibrary.createAssetAsync(uriToSave);
             const album = await MediaLibrary.getAlbumAsync('PictureThis');
 
             if (album == null) {
@@ -173,7 +182,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                     text: 'OK',
                     onPress: () => {
                         if (onSave) {
-                            onSave(currentImageUri);
+                            onSave(uriToSave);
                         }
                         onClose();
                     }
@@ -791,6 +800,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 12,
         marginBottom: 24,
+    },
+    controlsContainer: {
+        flex: 1,
+        padding: 20,
     },
     flipButtons: {
         flexDirection: 'row',

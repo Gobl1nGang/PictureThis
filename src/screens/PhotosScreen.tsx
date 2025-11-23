@@ -6,6 +6,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 
+
 const { width } = Dimensions.get('window');
 const numColumns = 3;
 const imageSize = (width - 6) / numColumns;
@@ -208,6 +209,8 @@ export default function PhotosScreen() {
     }
   };
 
+
+
   const addPhotosFromLibrary = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -240,6 +243,8 @@ export default function PhotosScreen() {
       console.error('Error adding photos:', error);
     }
   };
+
+
 
   if (!permission) {
     return (
