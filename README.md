@@ -62,7 +62,7 @@ An AI-powered camera coach that helps you take better photos in real-time.
 This app uses **Development Builds** (not Expo Go) due to native dependencies like `@shopify/react-native-skia`.
 
 #### iOS (Physical Device)
-1.  Connect your iPhone to your Mac.
+1.  Connect your iPhone to your Mac & Get iOS 26.1 in Xcode Components.
 2.  Open `ios/PictureThis.xcworkspace` in Xcode.
 3.  Select your **Team** in the "Signing & Capabilities" tab for the `PictureThis` target.
 4.  Run the build command:
