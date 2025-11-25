@@ -57,31 +57,76 @@ export default function SettingsScreen() {
     }).start();
   };
 
-  const SettingRow = ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <View style={styles.settingRow}>
-      <Text style={styles.settingTitle}>{title}</Text>
-      {children}
+  const GroupedSection = ({ title, children }: { title?: string; children: React.ReactNode }) => (
+    <View style={styles.groupedSectionContainer}>
+      {title && <Text style={styles.groupedSectionTitle}>{title}</Text>}
+      <View style={styles.groupedSection}>
+        {children}
+      </View>
     </View>
   );
 
-  const DropdownButton = ({ value, options, onSelect }: { value: string; options: string[]; onSelect: (value: string) => void }) => (
+  const GroupedRow = ({
+    icon,
+    title,
+    value,
+    isLast,
+    onPress,
+    type = 'arrow',
+    switchValue,
+    onSwitchChange
+  }: {
+    icon: keyof typeof Ionicons.glyphMap;
+    title: string;
+    value?: string;
+    isLast?: boolean;
+    onPress?: () => void;
+    type?: 'arrow' | 'switch' | 'value';
+    switchValue?: boolean;
+    onSwitchChange?: (val: boolean) => void;
+  }) => (
     <TouchableOpacity
-      style={styles.dropdown}
-      onPress={() => {
-        Alert.alert(
-          'Select Option',
-          '',
-          options.map(option => ({
-            text: option,
-            onPress: () => onSelect(option)
-          }))
-        );
-      }}
+      style={[styles.groupedRow, isLast && styles.lastGroupedRow]}
+      onPress={onPress}
+      disabled={type === 'switch'}
+      activeOpacity={0.7}
     >
-      <Text style={styles.dropdownText}>{value}</Text>
-      <Ionicons name="chevron-down" size={16} color="white" />
+      <View style={styles.rowIconContainer}>
+        <Ionicons name={icon} size={22} color="#4CD964" />
+      </View>
+      <View style={[styles.rowContent, isLast && styles.lastRowContent]}>
+        <Text style={styles.rowTitle}>{title}</Text>
+        <View style={styles.rowRight}>
+          {type === 'switch' ? (
+            <Switch
+              value={switchValue}
+              onValueChange={onSwitchChange}
+              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
+              thumbColor="white"
+            />
+          ) : (
+            <>
+              {value && <Text style={styles.rowValue}>{value}</Text>}
+              {type === 'arrow' && <Ionicons name="chevron-forward" size={16} color="#666" style={{ marginLeft: 8 }} />}
+            </>
+          )}
+        </View>
+      </View>
     </TouchableOpacity>
   );
+
+  const handleSelect = (title: string, options: string[], current: string, onSelect: (val: string) => void) => {
+    Alert.alert(
+      title,
+      '',
+      options.map(opt => ({
+        text: opt,
+        style: opt === current ? 'default' : 'default',
+        onPress: () => onSelect(opt)
+      })),
+      { cancelable: true }
+    );
+  };
 
   const clearCache = () => {
     Alert.alert(
@@ -99,188 +144,106 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Animated.View style={[styles.header, {
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }]
-      }]}>
-        <Animated.Text style={[styles.headerText, {
-          transform: [{ scale: scaleAnim }]
-        }]}>Settings</Animated.Text>
-      </Animated.View>
-
-      {/* Basic Settings */}
-      <Animated.View style={[styles.section, {
-        opacity: fadeAnim,
-        transform: [{
-          translateY: slideAnim.interpolate({
-            inputRange: [0, 50],
-            outputRange: [0, 30]
-          })
-        }]
-      }]}>
-        <Text style={styles.sectionTitle}>Basic Settings</Text>
-
-        <SettingRow title="AI Feedback Frequency">
-          <DropdownButton
-            value={feedbackFrequency}
-            options={['1s', '2s', '3s']}
-            onSelect={setFeedbackFrequency}
-          />
-        </SettingRow>
-
-        <SettingRow title="Coaching Style">
-          <DropdownButton
-            value={coachingStyle}
-            options={['Beginner', 'Intermediate', 'Advanced']}
-            onSelect={setCoachingStyle}
-          />
-        </SettingRow>
-
-        <SettingRow title="Grid Lines">
-          <DropdownButton
-            value={gridLines}
-            options={['Rule of Thirds', 'Off']}
-            onSelect={setGridLines}
-          />
-        </SettingRow>
-
-        <SettingRow title="Auto-Save Photos">
-          <Switch
-            value={autoSave}
-            onValueChange={setAutoSave}
-            trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
-          />
-        </SettingRow>
-
-        <SettingRow title="Photo Quality">
-          <DropdownButton
-            value={photoQuality}
-            options={['High', 'Medium', 'Low']}
-            onSelect={setPhotoQuality}
-          />
-        </SettingRow>
-      </Animated.View>
-
-      {/* Advanced Settings Toggle */}
-      <Animated.View style={{
-        opacity: fadeAnim,
-        transform: [{
-          translateY: slideAnim.interpolate({
-            inputRange: [0, 50],
-            outputRange: [0, 40]
-          })
-        }]
-      }}>
-        <TouchableOpacity
-          style={styles.advancedToggle}
-          onPress={toggleAdvanced}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.advancedToggleText}>Advanced Settings</Text>
-          <Animated.View style={{
-            transform: [{
-              rotate: advancedAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: ['0deg', '180deg']
-              })
-            }]
-          }}>
-            <Ionicons
-              name="chevron-down"
-              size={20}
-              color="white"
-            />
-          </Animated.View>
-        </TouchableOpacity>
-      </Animated.View>
-
-      {/* Advanced Settings */}
-      {showAdvanced && (
-        <Animated.View style={[styles.section, {
-          opacity: advancedAnim,
-          transform: [{
-            translateY: advancedAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [-20, 0]
-            })
-          }]
-        }]}>
-          <SettingRow title="Analysis Focus">
-            <DropdownButton
-              value={analysisFocus}
-              options={['Composition', 'Lighting', 'Both']}
-              onSelect={setAnalysisFocus}
-            />
-          </SettingRow>
-
-          <SettingRow title="Pro Score Sensitivity">
-            <DropdownButton
-              value={scoreSensitivity}
-              options={['Strict', 'Normal', 'Lenient']}
-              onSelect={setScoreSensitivity}
-            />
-          </SettingRow>
-
-          <SettingRow title="Storage Location">
-            <DropdownButton
-              value={storageLocation}
-              options={['Camera Roll', 'App Folder']}
-              onSelect={setStorageLocation}
-            />
-          </SettingRow>
-
-          <SettingRow title="Haptic Feedback">
-            <Switch
-              value={hapticFeedback}
-              onValueChange={setHapticFeedback}
-              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
-            />
-          </SettingRow>
-
-          <SettingRow title="Sound Effects">
-            <Switch
-              value={soundEffects}
-              onValueChange={setSoundEffects}
-              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
-            />
-          </SettingRow>
-
-          <SettingRow title="Photo Analysis">
-            <DropdownButton
-              value={photoAnalysis}
-              options={['Local only', 'Cloud-enhanced']}
-              onSelect={setPhotoAnalysis}
-            />
-          </SettingRow>
-
-          <SettingRow title="Usage Analytics">
-            <Switch
-              value={usageAnalytics}
-              onValueChange={setUsageAnalytics}
-              trackColor={{ false: 'rgba(255, 255, 255, 0.1)', true: '#4CD964' }}
-            />
-          </SettingRow>
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity style={styles.clearButton} onPress={clearCache}>
-              <Text style={styles.clearButtonText}>Clear Cache</Text>
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      )}
-
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>PictureThis v1.0.0</Text>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Settings</Text>
       </View>
-    </ScrollView>
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+
+        {/* Pro Features Banner */}
+        <View style={styles.proBanner}>
+          <View style={styles.proContent}>
+            <Text style={styles.proTitle}>Photon Pro</Text>
+            <Text style={styles.proSubtitle}>Unlock RAW capture, 50MP mode, and advanced AI tools.</Text>
+          </View>
+          <TouchableOpacity style={styles.proButton}>
+            <Text style={styles.proButtonText}>UPGRADE</Text>
+          </TouchableOpacity>
+        </View>
+
+        <GroupedSection title="COMPOSITION">
+          <GroupedRow
+            icon="grid-outline"
+            title="Grid Lines"
+            value={gridLines}
+            onPress={() => handleSelect('Grid Lines', ['Rule of Thirds', 'Golden Ratio', 'Off'], gridLines, setGridLines)}
+          />
+          <GroupedRow
+            icon="school-outline"
+            title="Coaching Style"
+            value={coachingStyle}
+            isLast
+            onPress={() => handleSelect('Coaching Style', ['Beginner', 'Intermediate', 'Advanced'], coachingStyle, setCoachingStyle)}
+          />
+        </GroupedSection>
+
+        <GroupedSection title="CAMERA">
+          <GroupedRow
+            icon="image-outline"
+            title="Photo Quality"
+            value={photoQuality}
+            onPress={() => handleSelect('Photo Quality', ['High', 'Medium', 'Low'], photoQuality, setPhotoQuality)}
+          />
+          <GroupedRow
+            icon="save-outline"
+            title="Auto-Save"
+            type="switch"
+            switchValue={autoSave}
+            onSwitchChange={setAutoSave}
+          />
+          <GroupedRow
+            icon="flash-outline"
+            title="Feedback Frequency"
+            value={feedbackFrequency}
+            isLast
+            onPress={() => handleSelect('Feedback Frequency', ['1s', '2s', '3s'], feedbackFrequency, setFeedbackFrequency)}
+          />
+        </GroupedSection>
+
+        <GroupedSection title="ADVANCED">
+          <GroupedRow
+            icon="finger-print-outline"
+            title="Haptic Feedback"
+            type="switch"
+            switchValue={hapticFeedback}
+            onSwitchChange={setHapticFeedback}
+          />
+          <GroupedRow
+            icon="volume-high-outline"
+            title="Sound Effects"
+            type="switch"
+            switchValue={soundEffects}
+            onSwitchChange={setSoundEffects}
+          />
+          <GroupedRow
+            icon="analytics-outline"
+            title="Usage Analytics"
+            type="switch"
+            switchValue={usageAnalytics}
+            onSwitchChange={setUsageAnalytics}
+          />
+          <GroupedRow
+            icon="trash-outline"
+            title="Clear Cache"
+            isLast
+            onPress={clearCache}
+          />
+        </GroupedSection>
+
+        <View style={styles.footer}>
+          <Text style={styles.versionText}>Photon v1.0.0 (Build 1024)</Text>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#050505',
+    backgroundColor: '#000000',
   },
   header: {
     paddingTop: 60,
@@ -289,107 +252,113 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10, 10, 20, 0.95)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(76, 217, 100, 0.3)',
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
   },
-  headerText: {
+  headerTitle: {
     fontSize: 32,
     fontWeight: '600',
     color: 'white',
     letterSpacing: 0.5,
-    textShadowColor: 'rgba(76, 217, 100, 0.3)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
   },
-  section: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    marginTop: 20,
-    paddingVertical: 20,
-    borderRadius: 35,
-    marginHorizontal: width * 0.04,
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 10,
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 50,
+  },
+  proBanner: {
+    margin: 20,
+    padding: 20,
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: '#4CD964',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  sectionTitle: {
+  proContent: {
+    flex: 1,
+  },
+  proTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'white',
-    paddingHorizontal: 20,
+    color: '#4CD964',
+    marginBottom: 4,
+  },
+  proSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.7)',
+  },
+  proButton: {
+    backgroundColor: '#4CD964',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  proButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  groupedSectionContainer: {
+    marginHorizontal: 20,
+    marginBottom: 30,
+  },
+  groupedSectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  groupedSection: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  groupedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  lastGroupedRow: {
+    borderBottomWidth: 0,
+  },
+  rowIconContainer: {
+    width: 32,
+    alignItems: 'center',
+  },
+  rowContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginLeft: 12,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 10,
-    letterSpacing: 0.3,
   },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  lastRowContent: {
+    borderBottomWidth: 0,
+    paddingBottom: 0,
   },
-  settingTitle: {
+  rowTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#ccc',
-    flex: 1,
-    letterSpacing: 0.2,
+    color: 'white',
+    fontWeight: '400',
   },
-  dropdown: {
+  rowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 25,
-    minWidth: 130,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
   },
-  dropdownText: {
-    fontSize: 14,
-    color: 'white',
-    marginRight: 8,
+  rowValue: {
+    fontSize: 16,
+    color: '#666',
   },
-  advancedToggle: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingHorizontal: 28,
-    paddingVertical: 22,
-    marginTop: 20,
-    marginHorizontal: width * 0.04,
-    borderRadius: 35,
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  advancedToggleText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: 'white',
-    letterSpacing: 0.3,
+  versionText: {
+    fontSize: 13,
+    color: '#666',
+    textAlign: 'center',
   },
   buttonRow: {
     paddingHorizontal: 20,
@@ -414,10 +383,5 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     alignItems: 'center',
   },
-  footerText: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#9ca3af',
-    letterSpacing: 0.5,
-  },
+
 });

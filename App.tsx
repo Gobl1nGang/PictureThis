@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Animated, Dimensions, Image, SafeAreaView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, Animated, useWindowDimensions, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { UserProfileProvider, useUserProfile } from './src/contexts/UserProfileContext';
 import { PhotoContextProvider } from './src/contexts/PhotoContextContext';
 
-const { width } = Dimensions.get('window');
-const tabWidth = width / 4;
+const { width: initialWidth } = Dimensions.get('window');
+const tabWidth = initialWidth / 4;
 
 import CameraScreen from './src/screens/CameraScreen';
 import PhotosScreen from './src/screens/PhotosScreen';
@@ -17,10 +17,16 @@ import OnboardingFlow from './src/screens/OnboardingFlow';
 function MainApp() {
   const { hasCompletedOnboarding, loading } = useUserProfile();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
   const [activeTab, setActiveTab] = useState('Camera');
   const slideAnim = useRef(new Animated.Value(0)).current;
 
   const tabs = ['Camera', 'Photos', 'Inspo', 'Settings'];
+
+  // Recalculate tabWidth when dimensions change
+  const currentTabWidth = width / tabs.length;
 
   useEffect(() => {
     if (!loading && !hasCompletedOnboarding) {
@@ -79,33 +85,36 @@ function MainApp() {
     <View style={styles.container}>
       {renderScreen()}
 
-      <View style={styles.tabBar}>
-        <Animated.View
-          style={[
-            styles.slideIndicator,
-            {
-              transform: [{ translateX: slideAnim }]
-            }
-          ]}
-        />
+      {/* Hide tab bar in landscape mode */}
+      {!isLandscape && (
+        <View style={styles.tabBar}>
+          <Animated.View
+            style={[
+              styles.slideIndicator,
+              {
+                transform: [{ translateX: slideAnim }]
+              }
+            ]}
+          />
 
-        {tabs.map((tabName) => (
-          <TouchableOpacity
-            key={tabName}
-            style={styles.tab}
-            onPress={() => setActiveTab(tabName)}
-          >
-            <Ionicons
-              name={getTabIcon(tabName) as any}
-              size={22}
-              color={activeTab === tabName ? '#4CD964' : '#666'}
-            />
-            <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>
-              {tabName}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+          {tabs.map((tabName) => (
+            <TouchableOpacity
+              key={tabName}
+              style={styles.tab}
+              onPress={() => setActiveTab(tabName)}
+            >
+              <Ionicons
+                name={getTabIcon(tabName) as any}
+                size={22}
+                color={activeTab === tabName ? '#4CD964' : '#666'}
+              />
+              <Text style={[styles.tabText, activeTab === tabName && styles.activeTabText]}>
+                {tabName}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <StatusBar style="light" translucent backgroundColor="transparent" />
     </View>
@@ -130,15 +139,11 @@ const styles = StyleSheet.create({
 
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(10, 10, 20, 0.95)', // Deep black/blue
+    backgroundColor: 'rgba(10, 10, 20, 0.95)',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingBottom: 20, // Add padding for home indicator
+    paddingBottom: 20,
     paddingTop: 15,
-    position: 'absolute', // Float over content if needed, or keep relative but dark
-    bottom: 0,
-    left: 0,
-    right: 0,
   },
   slideIndicator: {
     position: 'absolute',

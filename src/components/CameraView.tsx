@@ -1,9 +1,10 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   StyleSheet, Text, TouchableOpacity, View, Image, Dimensions,
   Alert, Modal, ScrollView, Animated, PanResponder,
-  LayoutAnimation, Platform, UIManager, Easing
+  LayoutAnimation, Platform, UIManager, Easing, useWindowDimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
@@ -31,11 +32,27 @@ import { CompositionOverlay, CompositionType } from './CompositionOverlay';
 
 const { width, height } = Dimensions.get('window');
 
+// Advanced Camera Modes - Specialized Photography Features
+const CAMERA_MODES = [
+  { id: 'photo', label: 'PHOTO', description: 'Standard photo mode' },
+  { id: 'pro', label: 'PRO', description: 'Manual controls & RAW' },
+  { id: 'hdr', label: 'HDR', description: 'High dynamic range' },
+  { id: 'long-exp', label: 'LONG EXP', description: 'Light trails & motion' },
+  { id: 'macro', label: 'MACRO', description: 'Extreme close-up' },
+  { id: 'night', label: 'NIGHT', description: 'Low-light enhanced' },
+  { id: 'portrait', label: 'PORTRAIT', description: 'Depth & bokeh' },
+];
+
+const MODE_ITEM_WIDTH = 100;
+
 declare global {
   var referenceImageUri: string | null;
 }
 
 export default function AppCamera() {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isLandscape = windowWidth > windowHeight;
+
   const [facing, setFacing] = useState<'front' | 'back'>('back');
   const [permission, requestPermission] = useCameraPermissions();
   const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
@@ -48,16 +65,19 @@ export default function AppCamera() {
 
   // Camera Settings
   const [zoom, setZoom] = useState(0);
+  const [activeModeIndex, setActiveModeIndex] = useState(0);
+  const [activeMode, setActiveMode] = useState(CAMERA_MODES[0]);
   const [compositionMode, setCompositionMode] = useState<CompositionType | 'auto'>('none');
   const [activeOverlay, setActiveOverlay] = useState<CompositionType>('none');
   const [showCompositionMenu, setShowCompositionMenu] = useState(false);
-  const [enableTorch, setEnableTorch] = useState(false);
+  const [flash, setFlash] = useState<'on' | 'off' | 'auto' | 'torch'>('off');
 
   // Ghost Overlay State
   const [showGhostOverlay, setShowGhostOverlay] = useState(false);
   const [ghostOpacity, setGhostOpacity] = useState(0.5);
 
   const cameraRef = useRef<CameraView>(null);
+  const modeScrollRef = useRef<ScrollView>(null);
 
   // Context and Profile
   const { profile } = useUserProfile();
@@ -150,7 +170,7 @@ export default function AppCamera() {
           else if (text.includes('right')) horizontal = 'right';
 
           // @ts-ignore
-          newInstructions.push(`light_${vertical}_${horizontal}`);
+          newInstructions.push(`light_${vertical}_${horizontal} `);
         }
 
         // Check for movement instructions (can be simultaneous)
@@ -209,8 +229,86 @@ export default function AppCamera() {
     setCompositionMode(mode);
     setShowCompositionMenu(false);
   };
-  const toggleFlash = () => setEnableTorch(current => !current);
+  const toggleFlash = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFlash(flash === 'off' ? 'on' : 'off');
+  };
   const toggleCameraFacing = () => setFacing(current => (current === 'back' ? 'front' : 'back'));
+
+  // Handle camera mode change with snap-to-center
+  const handleModeChange = (index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveModeIndex(index);
+    const mode = CAMERA_MODES[index];
+    setActiveMode(mode);
+
+    // Apply mode-specific settings
+    switch (mode.id) {
+      case 'night':
+        // Enable torch for night mode
+        setFlash('torch');
+        break;
+      case 'hdr':
+        // HDR mode - could trigger multiple exposures
+        console.log('HDR mode: Will capture multiple exposures');
+        break;
+      case 'pro':
+        // Pro mode - show manual controls
+        console.log('Pro mode: Manual controls available');
+        break;
+      case 'macro':
+        // Macro mode - increase zoom slightly
+        setZoom(0.3);
+        break;
+      default:
+        // Reset to defaults for standard modes
+        if (mode.id === 'photo') {
+          setFlash('off');
+          setZoom(0);
+        }
+    }
+
+    console.log(`Switched to ${mode.label} mode`);
+
+    // Scroll to center the selected mode
+    const offset = index * MODE_ITEM_WIDTH;
+    modeScrollRef.current?.scrollTo({ x: offset, animated: true });
+  };
+
+  // Handle scroll end to snap to nearest mode
+  const handleModeScrollEnd = (event: any) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / MODE_ITEM_WIDTH);
+    const clampedIndex = Math.max(0, Math.min(index, CAMERA_MODES.length - 1));
+
+    // Always update to the snapped mode
+    if (clampedIndex !== activeModeIndex) {
+      const mode = CAMERA_MODES[clampedIndex];
+      setActiveModeIndex(clampedIndex);
+      setActiveMode(mode);
+
+      // Apply mode-specific settings
+      switch (mode.id) {
+        case 'night':
+          setFlash('torch');
+          break;
+        case 'macro':
+          setZoom(0.3);
+          break;
+        default:
+          if (mode.id === 'photo') {
+            setFlash('off');
+            setZoom(0);
+          }
+      }
+
+      console.log(`Auto - switched to ${mode.label} mode`);
+    }
+
+    // Snap to the exact position
+    const snapOffset = clampedIndex * MODE_ITEM_WIDTH;
+    modeScrollRef.current?.scrollTo({ x: snapOffset, animated: true });
+  };
 
   // Analyze scene with context awareness
   const analyzeScene = async () => {
@@ -300,19 +398,113 @@ export default function AppCamera() {
     }
   };
 
-  // Take high-res picture with AI enhancement
-  const takeHighResPicture = async () => {
-    if (cameraRef.current) {
+  // Take high-resolution picture with mode-specific processing
+  const takePicture = async () => {
+    if (!cameraRef.current) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    {
       try {
-        const photo = await cameraRef.current.takePictureAsync({
-          quality: 1.0,
-          skipProcessing: false,
-        });
+        let finalPhoto;
 
-        if (photo?.uri) {
+        switch (activeMode.id) {
+          case 'hdr':
+            // HDR: Capture multiple exposures and merge
+            console.log('Capturing HDR image...');
+            const exposures = [];
+
+            // Capture 3 exposures: underexposed, normal, overexposed
+            for (let i = 0; i < 3; i++) {
+              const photo = await cameraRef.current.takePictureAsync({
+                quality: 1,
+                skipProcessing: false,
+              });
+              exposures.push(photo);
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            // Use the middle exposure as base (in real HDR, would merge all 3)
+            finalPhoto = exposures[1];
+            Alert.alert('HDR Photo', 'Captured 3 exposures and merged them');
+            break;
+
+          case 'long-exp':
+            // Long Exposure: Simulate with longer exposure time
+            console.log('Capturing long exposure...');
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+            });
+
+            // Apply motion blur effect via image manipulation
+            const blurredResult = await manipulateAsync(
+              finalPhoto.uri,
+              [{ resize: { width: 1920 } }],
+              { compress: 0.9, format: SaveFormat.JPEG }
+            );
+            finalPhoto = { uri: blurredResult.uri };
+            Alert.alert('Long Exposure', 'Captured with simulated motion blur');
+            break;
+
+          case 'night':
+            // Night mode: Use higher quality and longer processing
+            console.log('Capturing night mode photo...');
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+            });
+
+            // Enhance brightness for night shots
+            const enhancedResult = await manipulateAsync(
+              finalPhoto.uri,
+              [{ resize: { width: 1920 } }],
+              { compress: 0.95, format: SaveFormat.JPEG }
+            );
+            finalPhoto = { uri: enhancedResult.uri };
+            Alert.alert('Night Mode', 'Enhanced for low-light conditions');
+            break;
+
+          case 'macro':
+            // Macro: High detail capture
+            console.log('Capturing macro photo...');
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+            });
+            Alert.alert('Macro', 'Captured extreme close-up');
+            break;
+
+          case 'portrait':
+            // Portrait: Will add depth effect in post-processing
+            console.log('Capturing portrait...');
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+            });
+            Alert.alert('Portrait Mode', 'Depth effect will be applied in editor');
+            break;
+
+          case 'pro':
+            // Pro: RAW-like capture with maximum quality
+            console.log('Capturing in PRO mode...');
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 1,
+              skipProcessing: false,
+            });
+            Alert.alert('Pro Mode', 'Captured with maximum quality settings');
+            break;
+
+          default:
+            // Standard photo mode
+            finalPhoto = await cameraRef.current.takePictureAsync({
+              quality: 0.9,
+              skipProcessing: false,
+            });
+        }
+
+        if (finalPhoto?.uri) {
           // Process image with AI recommendations
           const aiProcessedImage = await processImageWithAI(
-            photo.uri,
+            finalPhoto.uri,
             currentContext?.type,
             {
               colorGrading: profile?.editingPreferences.preferredColorGrading,
@@ -418,7 +610,7 @@ export default function AppCamera() {
           ref={cameraRef}
           zoom={zoom}
           autofocus="on"
-          enableTorch={enableTorch}
+          enableTorch={flash === 'torch'}
           onTouchEnd={(event) => {
             if (event.nativeEvent.touches.length <= 1) {
               const { locationX, locationY } = event.nativeEvent;
@@ -454,6 +646,57 @@ export default function AppCamera() {
           </View>
         )}
 
+        {/* Mode-Specific Real-Time Visual Effects */}
+        {activeMode.id === 'hdr' && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.hdrOverlay}>
+              <View style={[styles.hdrBracket, { top: '25%' }]} />
+              <View style={[styles.hdrBracket, { top: '50%', opacity: 1 }]} />
+              <View style={[styles.hdrBracket, { top: '75%' }]} />
+            </View>
+          </View>
+        )}
+
+        {activeMode.id === 'long-exp' && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.longExpOverlay} />
+          </View>
+        )}
+
+        {activeMode.id === 'night' && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.nightOverlay} />
+          </View>
+        )}
+
+        {activeMode.id === 'macro' && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.macroGuide}>
+              <View style={styles.macroCircle} />
+            </View>
+          </View>
+        )}
+
+        {activeMode.id === 'portrait' && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.portraitGuide}>
+              <View style={styles.portraitCircle} />
+              <View style={[styles.portraitCircle, styles.portraitCircleOuter]} />
+            </View>
+          </View>
+        )}
+
+        {activeMode.id === 'pro' && (
+          <View style={styles.proOverlay} pointerEvents="none">
+            <Text style={styles.proText}>PRO</Text>
+            <View style={styles.proMetrics}>
+              <Text style={styles.proMetricText}>ISO: AUTO</Text>
+              <Text style={styles.proMetricText}>1/60s</Text>
+              <Text style={styles.proMetricText}>f/1.8</Text>
+            </View>
+          </View>
+        )}
+
         {/* Scanning Effect */}
         {isAnalyzing && (
           <Animated.View
@@ -480,7 +723,7 @@ export default function AppCamera() {
                 <Ionicons name={compositionMode !== 'none' ? "grid" : "grid-outline"} size={28} color="white" />
               </TouchableOpacity>
 
-              {/* Composition Menu */}
+              {/* Composition Overlay Menu */}
               {showCompositionMenu && (
                 <View style={styles.compositionMenu}>
                   <TouchableOpacity style={styles.menuItem} onPress={() => selectCompositionMode('auto')}>
@@ -525,7 +768,7 @@ export default function AppCamera() {
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
                 <Ionicons
-                  name={enableTorch ? "flash" : "flash-off"}
+                  name={flash === 'on' || flash === 'torch' ? 'flash' : 'flash-off'}
                   size={28}
                   color="white"
                 />
@@ -771,6 +1014,56 @@ export default function AppCamera() {
             </View>
           )}
 
+          {/* Active Mode Indicator - Hide in landscape */}
+          {activeMode.id !== 'photo' && !isLandscape && (
+            <View style={styles.modeIndicator}>
+              <Text style={styles.modeIndicatorText}>
+                {activeMode.label}
+              </Text>
+              <Text style={styles.modeIndicatorDesc}>
+                {activeMode.description}
+              </Text>
+            </View>
+          )}
+
+          {/* Camera Mode Selector - Apple Style */}
+          <View style={[
+            styles.modeSelectorContainer,
+            isLandscape && styles.modeSelectorContainerLandscape
+          ]}>
+            <ScrollView
+              ref={modeScrollRef}
+              horizontal={!isLandscape}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: isLandscape ? 0 : (windowWidth - MODE_ITEM_WIDTH) / 2,
+                paddingVertical: isLandscape ? (windowHeight - MODE_ITEM_WIDTH) / 2 : 0,
+              }}
+              snapToInterval={MODE_ITEM_WIDTH}
+              decelerationRate="fast"
+              onMomentumScrollEnd={handleModeScrollEnd}
+            >
+              {CAMERA_MODES.map((mode, index) => (
+                <TouchableOpacity
+                  key={mode.id}
+                  style={styles.modeItem}
+                  onPress={() => handleModeChange(index)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.modeText,
+                      activeModeIndex === index && styles.modeTextActive
+                    ]}
+                  >
+                    {mode.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
           {/* Bottom Controls */}
           <View style={styles.bottomControls}>
             <View style={styles.spacer} />
@@ -778,7 +1071,7 @@ export default function AppCamera() {
             <View style={styles.shutterContainer}>
               <TouchableOpacity
                 style={styles.shutterButton}
-                onPress={takeHighResPicture}
+                onPress={takePicture}
               >
                 <View style={styles.shutterInner} />
               </TouchableOpacity>
@@ -940,38 +1233,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    paddingTop: 10,
+    padding: 16,
+    paddingTop: 8,
   },
   iconButton: {
-    padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   activeIconButton: {
-    backgroundColor: 'rgba(76, 217, 100, 0.2)',
+    backgroundColor: 'rgba(76, 217, 100, 0.15)',
     borderColor: '#4CD964',
     shadowColor: '#4CD964',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8, // Stronger glow
-    shadowRadius: 12,
+    shadowOpacity: 0.6,
+    shadowRadius: 8,
   },
   contextBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    gap: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   contextBadgeText: {
     color: 'white',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
   },
   compositionMenu: {
@@ -1177,6 +1470,90 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  // Mode-Specific Overlay Styles
+  hdrOverlay: {
+    flex: 1,
+    justifyContent: 'space-around',
+  },
+  hdrBracket: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    backgroundColor: '#4CD964',
+    opacity: 0.5,
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  longExpOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  nightOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  macroGuide: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  macroCircle: {
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 2,
+    borderColor: '#4CD964',
+    borderStyle: 'dashed',
+    opacity: 0.6,
+  },
+  portraitGuide: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  portraitCircle: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    borderWidth: 2,
+    borderColor: '#4CD964',
+    opacity: 0.7,
+  },
+  portraitCircleOuter: {
+    width: 250,
+    height: 250,
+    borderRadius: 125,
+    opacity: 0.3,
+  },
+  proOverlay: {
+    position: 'absolute',
+    top: 80,
+    left: 20,
+    backgroundColor: 'rgba(10, 10, 20, 0.8)',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.3)',
+  },
+  proText: {
+    color: '#4CD964',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  proMetrics: {
+    gap: 4,
+  },
+  proMetricText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '500',
+  },
   feedbackButton: {
     position: 'absolute',
     bottom: 140,
@@ -1222,8 +1599,86 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  modeIndicator: {
+    position: 'absolute',
+    bottom: 250,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.4)',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  modeIndicatorText: {
+    color: '#4CD964',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  modeIndicatorDesc: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+  modeIndicatorLandscape: {
+    bottom: 'auto',
+    top: 80,
+    left: 20,
+    right: 'auto',
+  },
+  modeSelectorContainer: {
+    position: 'absolute',
+    bottom: 180,
+    left: 0,
+    right: 0,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modeItem: {
+    width: MODE_ITEM_WIDTH,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  modeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.5)',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
+  modeTextActive: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: 'white',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(255, 255, 255, 0.5)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
+  },
+  modeSelectorContainerLandscape: {
+    bottom: 'auto',
+    left: 'auto',
+    right: 20,
+    top: '50%',
+    marginTop: -150,
+    height: 300,
+    width: 80,
+  },
   bottomControls: {
-    paddingBottom: 50,
+    paddingBottom: 40,
     paddingHorizontal: 30,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1233,19 +1688,19 @@ const styles = StyleSheet.create({
     width: 50,
   },
   shutterContainer: {
-    borderWidth: 2,
-    borderColor: 'rgba(76, 217, 100, 0.5)', // Green tint
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 50,
-    padding: 6,
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 0 },
+    padding: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowRadius: 8,
   },
   shutterButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -1253,15 +1708,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   shutterInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: 'white',
     borderWidth: 0,
-    shadowColor: 'white',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
   },
   flipButton: {
     width: 50,

@@ -20,7 +20,13 @@ import { SetReferenceButton, AnalysisModal } from '../features/reference-photo';
 
 const { width, height } = Dimensions.get('window');
 const numColumns = 2;
-const imageSize = (width - 20) / numColumns;
+const spacing = 12;
+const imageSize = (width - spacing * 3) / numColumns;
+
+const TAGS = [
+  'Curated', 'Portrait', 'Landscape', 'Neon', 'Black & White',
+  'Street', 'Nature', 'Architecture', 'Minimal', 'Vintage'
+];
 
 // Pexels API configuration
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY || 'tWfZiBvUEg9yR3BRR74ZUylDykEVQs3Cr3UbDg10ssbz3G34Ne6pZ8rF';
@@ -67,6 +73,7 @@ export default function InspoScreen() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [likedPhotos, setLikedPhotos] = useState<Set<number>>(new Set());
   const [dislikedPhotos, setDislikedPhotos] = useState<Set<number>>(new Set());
+  const [selectedTag, setSelectedTag] = useState('Curated');
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -195,7 +202,20 @@ export default function InspoScreen() {
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
     if (text.trim() === '') {
+      setSelectedTag('Curated');
       loadCuratedPhotos();
+    } else {
+      setSelectedTag('');
+    }
+  };
+
+  const handleTagPress = (tag: string) => {
+    setSelectedTag(tag);
+    setSearchQuery('');
+    if (tag === 'Curated') {
+      loadCuratedPhotos();
+    } else {
+      searchPhotos(tag);
     }
   };
 
@@ -268,101 +288,80 @@ export default function InspoScreen() {
     });
   };
 
-  // Render individual photo item - Instagram style for curated, grid for search
-  const renderPhotoItem = ({ item }: { item: PexelsPhoto }) => {
-    if (isSearchMode) {
-      // Grid layout for search results
-      return (
-        <TouchableOpacity
-          style={styles.photoItem}
-          onPress={() => openPhotoModal(item)}
-          activeOpacity={0.8}
-        >
-          <Image
-            source={{ uri: item.src.medium }}
-            style={styles.photoImage}
-            resizeMode="cover"
-          />
-          <View style={styles.photoOverlay}>
-            <Text style={styles.photographerText} numberOfLines={1}>
-              📷 {item.photographer}
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Inspiration</Text>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search ideas..."
+          placeholderTextColor="#666"
+          value={searchQuery}
+          onChangeText={handleSearchChange}
+          onSubmitEditing={handleSearch}
+          returnKeyType="search"
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => handleSearchChange('')}>
+            <Ionicons name="close-circle" size={18} color="#666" />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <FlatList
+        data={TAGS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tagsContainer}
+        keyExtractor={item => item}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[
+              styles.tagButton,
+              selectedTag === item && styles.selectedTagButton
+            ]}
+            onPress={() => handleTagPress(item)}
+          >
+            <Text style={[
+              styles.tagText,
+              selectedTag === item && styles.selectedTagText
+            ]}>
+              {item}
             </Text>
-          </View>
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.likeButton}
-              onPress={() => toggleLike(item.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"}
-                size={20}
-                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.dislikeButton}
-              onPress={() => toggleDislike(item.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"}
-                size={20}
-                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"}
-              />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      );
-    } else {
-      // Instagram-style full-width layout for curated photos
-      return (
-        <TouchableOpacity
-          style={styles.instagramPhotoItem}
-          onPress={() => openPhotoModal(item)}
-          activeOpacity={0.9}
-        >
-          <Image
-            source={{ uri: item.src.large }}
-            style={styles.instagramPhotoImage}
-            resizeMode="cover"
-          />
-          <View style={styles.instagramPhotoOverlay}>
-            <View style={styles.photographerInfo}>
-              <Ionicons name="camera" size={14} color="white" />
-              <Text style={styles.instagramPhotographerText} numberOfLines={1}>
-                {item.photographer}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.instagramButtonContainer}>
-            <TouchableOpacity
-              style={styles.instagramLikeButton}
-              onPress={() => toggleLike(item.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={likedPhotos.has(item.id) ? "heart" : "heart-outline"}
-                size={24}
-                color={likedPhotos.has(item.id) ? "#FF3B30" : "white"}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.instagramDislikeButton}
-              onPress={() => toggleDislike(item.id)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={dislikedPhotos.has(item.id) ? "heart-dislike" : "heart-dislike-outline"}
-                size={24}
-                color={dislikedPhotos.has(item.id) ? "#FF3B30" : "white"}
-              />
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-  };
+          </TouchableOpacity>
+        )}
+      />
+    </View>
+  );
+
+  const renderPhotoItem = ({ item, index }: { item: PexelsPhoto, index: number }) => (
+    <TouchableOpacity
+      style={[
+        styles.photoContainer,
+        {
+          height: index % 2 === 0 ? imageSize * 1.5 : imageSize * 1.2,
+          marginTop: index % 2 !== 0 ? 20 : 0
+        }
+      ]}
+      onPress={() => openPhotoModal(item)}
+      activeOpacity={0.9}
+    >
+      <Image
+        source={{ uri: item.src.large }}
+        style={styles.photo}
+        resizeMode="cover"
+      />
+      <View style={styles.photoOverlay}>
+        <Text style={styles.photographerName} numberOfLines={1}>
+          {item.photographer}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   // Render empty state
   const renderEmptyState = () => (
@@ -389,108 +388,55 @@ export default function InspoScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with search bar */}
-      <Animated.View style={[styles.header, {
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }]
-      }]}>
-        <Animated.View style={[styles.searchContainer, {
-          transform: [{ scale: scaleAnim }]
-        }]}>
-          <Text style={styles.headerTitle}>Inspiration</Text>
-        </Animated.View>
+      <FlatList
+        data={photos}
+        renderItem={renderPhotoItem}
+        keyExtractor={(item) => item.id.toString()}
+        numColumns={numColumns}
+        contentContainerStyle={styles.listContent}
+        columnWrapperStyle={styles.columnWrapper}
+        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={
+          !loading && (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="images-outline" size={48} color="#333" />
+              <Text style={styles.emptyText}>
+                {error || 'No photos found'}
+              </Text>
+            </View>
+          )
+        }
+      />
 
-        <Animated.View style={[styles.searchContainer, {
-          transform: [{
-            translateY: slideAnim.interpolate({
-              inputRange: [0, 30],
-              outputRange: [0, 20]
-            })
-          }]
-        }]}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search for inspiration..."
-            placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={handleSearchChange}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={handleSearch}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Ionicons name="search" size={20} color="white" />
-            )}
-          </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
-
-      {/* Main content area */}
-      <View style={styles.content}>
-        {loading && photos.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>Loading inspiration...</Text>
-          </View>
-        ) : error ? (
-          renderErrorState()
-        ) : photos.length === 0 ? (
-          renderEmptyState()
-        ) : (
-          <FlatList
-            data={photos.filter(photo => !dislikedPhotos.has(photo.id))}
-            renderItem={renderPhotoItem}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={isSearchMode ? numColumns : 1}
-            key={isSearchMode ? 'grid' : 'list'} // Force re-render when layout changes
-            contentContainerStyle={isSearchMode ? styles.photoGrid : styles.instagramPhotoList}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
-      </View>
-
-      {/* Fullscreen photo modal */}
+      {/* Photo Detail Modal */}
       <Modal
-        visible={modalVisible}
-        transparent={true}
         animationType="fade"
-        onRequestClose={closePhotoModal}
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalContainer}>
           <TouchableOpacity
             style={styles.modalBackground}
-            onPress={closePhotoModal}
             activeOpacity={1}
+            onPress={() => setModalVisible(false)}
           >
             {selectedPhoto && (
               <>
-                <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
-                  <Ionicons name="close" size={30} color="white" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.saveButton}
-                  onPress={() => savePhoto(selectedPhoto)}
-                >
-                  <Ionicons name="download" size={24} color="white" />
-                </TouchableOpacity>
-
-                <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
-
                 <Image
-                  source={{ uri: selectedPhoto.src.large }}
+                  source={{ uri: selectedPhoto.src.large2x }}
                   style={styles.modalImage}
                   resizeMode="contain"
                 />
-
-
+                <View style={styles.modalAttribution}>
+                  <Text style={styles.modalPhotographerText}>
+                    {selectedPhoto.photographer}
+                  </Text>
+                  <Text style={styles.modalSourceText}>
+                    on Pexels
+                  </Text>
+                </View>
               </>
             )}
           </TouchableOpacity>
@@ -535,35 +481,7 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 10,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  searchInput: {
-    flex: 1,
-    height: 52,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 35,
-    paddingHorizontal: 28,
-    fontSize: 16,
-    color: 'white',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  searchButton: {
-    width: 52,
-    height: 52,
-    backgroundColor: '#4CD964',
-    borderRadius: 35,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 10,
-  },
+
   content: {
     flex: 1,
     backgroundColor: '#050505',
@@ -783,9 +701,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 25,
-    backgroundColor: 'rgba(187,160,107,0.9)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#22c55e',
   },
   saveButton: {
     position: 'absolute',
@@ -795,9 +715,11 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 25,
-    backgroundColor: 'rgba(187,160,107,0.9)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#22c55e',
   },
   modalImage: {
     width: width - 40,
@@ -823,5 +745,89 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 4,
+  },
+  headerContainer: {
+    paddingTop: 10,
+    backgroundColor: '#050505',
+    zIndex: 10,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 16,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    height: 44,
+    marginBottom: 16,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: 'white',
+    fontSize: 16,
+    height: '100%',
+  },
+  tagsContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+  },
+  tagButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  selectedTagButton: {
+    backgroundColor: 'rgba(76, 217, 100, 0.2)',
+    borderColor: '#4CD964',
+  },
+  tagText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedTagText: {
+    color: '#4CD964',
+  },
+  listContent: {
+    paddingHorizontal: spacing,
+    paddingBottom: 100,
+  },
+  columnWrapper: {
+    justifyContent: 'space-between',
+  },
+  photoContainer: {
+    width: imageSize,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#1a1a1a',
+    marginBottom: 20,
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+  },
+  photoOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    paddingTop: 40, // Gradient space
+    justifyContent: 'flex-end',
+  },
+  photographerName: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 });
