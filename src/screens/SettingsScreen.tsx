@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert, Animated, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { TutorialSystem } from '../features/tutorials/TutorialSystem';
 
 const { width } = Dimensions.get('window');
 
@@ -21,6 +22,7 @@ export default function SettingsScreen() {
   const [soundEffects, setSoundEffects] = useState(false);
   const [photoAnalysis, setPhotoAnalysis] = useState('Local only');
   const [usageAnalytics, setUsageAnalytics] = useState(false);
+  const [showTutorials, setShowTutorials] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -162,7 +164,12 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <GroupedSection title="COMPOSITION">
+        <GroupedSection title="LEARNING">
+          <GroupedRow
+            icon="school-outline"
+            title="Photography Tutorials"
+            onPress={() => setShowTutorials(true)}
+          />
           <GroupedRow
             icon="grid-outline"
             title="Grid Lines"
@@ -232,10 +239,15 @@ export default function SettingsScreen() {
         </GroupedSection>
 
         <View style={styles.footer}>
-          <Text style={styles.versionText}>Photon v1.0.0 (Build 1024)</Text>
+          <Text style={styles.versionText}>PictureThis v1.0.0 (Build 1024)</Text>
         </View>
 
       </ScrollView>
+
+      <TutorialSystem
+        visible={showTutorials}
+        onClose={() => setShowTutorials(false)}
+      />
     </View>
   );
 }

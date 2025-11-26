@@ -424,6 +424,32 @@ export default function InspoScreen() {
           >
             {selectedPhoto && (
               <>
+                <TouchableOpacity style={styles.closeButton} onPress={closePhotoModal}>
+                  <Ionicons name="close" size={24} color="white" />
+                </TouchableOpacity>
+
+                <View style={styles.modalControls}>
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={() => savePhoto(selectedPhoto)}
+                  >
+                    <Ionicons name="download-outline" size={24} color="white" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.saveButton}
+                    onPress={() => {
+                      global.inspirationImageUri = selectedPhoto.src.large;
+                      Alert.alert('Set as Inspiration', 'This photo is now available as an overlay in the camera');
+                      closePhotoModal();
+                    }}
+                  >
+                    <Ionicons name="heart-outline" size={24} color="white" />
+                  </TouchableOpacity>
+
+                  <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+                </View>
+
                 <Image
                   source={{ uri: selectedPhoto.src.large2x }}
                   style={styles.modalImage}
@@ -707,19 +733,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#22c55e',
   },
-  saveButton: {
+  modalControls: {
     position: 'absolute',
     top: 50,
     left: 20,
     zIndex: 1,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  saveButton: {
     width: 44,
     height: 44,
     borderRadius: 25,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#22c55e',
   },
   modalImage: {
     width: width - 40,

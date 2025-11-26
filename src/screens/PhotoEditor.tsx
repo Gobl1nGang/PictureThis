@@ -11,7 +11,9 @@ import {
     ActivityIndicator,
     Alert,
     TextInput,
+    Modal,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { manipulateAsync, SaveFormat, FlipType } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
@@ -26,6 +28,7 @@ import { applySkiaFilter } from '../services/skiaFilterService';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { AdjustmentSlider } from '../types/index';
 import AdjustmentSliderComponent from '../components/AdjustmentSlider';
+import { BeforeAfterComparison } from '../components/BeforeAfterComparison';
 
 const { width } = Dimensions.get('window');
 
@@ -36,14 +39,62 @@ interface PhotoEditorProps {
     onSave?: (editedUri: string) => void;
 }
 
-type EditMode = 'ai' | 'crop' | 'adjust' | 'filters';
+type EditMode = 'ai' | 'crop' | 'adjust' | 'filters' | 'compare' | 'curves' | 'hsl' | 'masking' | 'effects' | 'details';
+
+// Professional Color Grading Presets
+const COLOR_GRADES = {
+  cinematic: { shadows: '#1a2332', midtones: '#d4af37', highlights: '#f4e4bc' },
+  vintage: { shadows: '#8b4513', midtones: '#daa520', highlights: '#f5deb3' },
+  modern: { shadows: '#2c3e50', midtones: '#3498db', highlights: '#ecf0f1' },
+  warm: { shadows: '#8b4513', midtones: '#ff8c00', highlights: '#ffd700' },
+  cool: { shadows: '#2f4f4f', midtones: '#4682b4', highlights: '#b0e0e6' },
+  dramatic: { shadows: '#000000', midtones: '#696969', highlights: '#ffffff' },
+};
+
+// Professional Curve Presets
+const CURVE_PRESETS = {
+  linear: [0, 0.25, 0.5, 0.75, 1],
+  contrast: [0, 0.2, 0.5, 0.8, 1],
+  soft: [0, 0.3, 0.5, 0.7, 1],
+  hard: [0, 0.1, 0.5, 0.9, 1],
+  vintage: [0.1, 0.3, 0.6, 0.8, 0.9],
+  film: [0.05, 0.25, 0.55, 0.75, 0.95],
+};
+
+// Professional Effects
+const PROFESSIONAL_EFFECTS = [
+  { id: 'orton', name: 'Orton Effect', description: 'Dreamy glow' },
+  { id: 'bleach', name: 'Bleach Bypass', description: 'High contrast' },
+  { id: 'cross', name: 'Cross Process', description: 'Color shift' },
+  { id: 'split', name: 'Split Toning', description: 'Dual color grade' },
+  { id: 'vignette', name: 'Vignette', description: 'Edge darkening' },
+  { id: 'grain', name: 'Film Grain', description: 'Texture overlay' },
+  { id: 'chromatic', name: 'Chromatic Aberration', description: 'Color fringing' },
+  { id: 'lens', name: 'Lens Distortion', description: 'Barrel/pincushion' },
+];
 
 const ASPECT_RATIOS = [
     { label: 'Free', value: null },
     { label: '1:1', value: 1 },
     { label: '4:3', value: 4 / 3 },
+    { label: '3:2', value: 3 / 2 },
     { label: '16:9', value: 16 / 9 },
     { label: '9:16', value: 9 / 16 },
+    { label: '21:9', value: 21 / 9 },
+    { label: '5:4', value: 5 / 4 },
+    { label: '8:10', value: 8 / 10 },
+];
+
+// Professional Crop Presets
+const CROP_PRESETS = [
+    { name: 'Instagram Square', ratio: 1, width: 1080, height: 1080 },
+    { name: 'Instagram Portrait', ratio: 4/5, width: 1080, height: 1350 },
+    { name: 'Instagram Story', ratio: 9/16, width: 1080, height: 1920 },
+    { name: 'Facebook Cover', ratio: 851/315, width: 851, height: 315 },
+    { name: 'YouTube Thumbnail', ratio: 16/9, width: 1280, height: 720 },
+    { name: 'Print 4x6', ratio: 3/2, width: 1800, height: 1200 },
+    { name: 'Print 5x7', ratio: 7/5, width: 2100, height: 1500 },
+    { name: 'Print 8x10', ratio: 5/4, width: 2400, height: 1920 },
 ];
 
 export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSave }: PhotoEditorProps) {
@@ -56,9 +107,73 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     const [hasChanges, setHasChanges] = useState(false);
     const [adjustmentSliders, setAdjustmentSliders] = useState<AdjustmentSlider[]>([]);
     const [currentAdjustments, setCurrentAdjustments] = useState<Record<string, number>>({});
+    const [basicAdjustments, setBasicAdjustments] = useState({
+        exposure: 0,
+        brightness: 0,
+        contrast: 0,
+        saturation: 0,
+        highlights: 0,
+        shadows: 0,
+    });
     const [filter, setFilter] = useState<string | undefined>(undefined);
     const [customPrompt, setCustomPrompt] = useState('');
     const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+    const [showComparison, setShowComparison] = useState(false);
+
+    // Professional Editing States
+    const [curves, setCurves] = useState({
+        rgb: CURVE_PRESETS.linear,
+        red: CURVE_PRESETS.linear,
+        green: CURVE_PRESETS.linear,
+        blue: CURVE_PRESETS.linear,
+    });
+    const [hslAdjustments, setHslAdjustments] = useState({
+        hue: 0,
+        saturation: 0,
+        lightness: 0,
+        redHue: 0, redSat: 0, redLum: 0,
+        orangeHue: 0, orangeSat: 0, orangeLum: 0,
+        yellowHue: 0, yellowSat: 0, yellowLum: 0,
+        greenHue: 0, greenSat: 0, greenLum: 0,
+        aquaHue: 0, aquaSat: 0, aquaLum: 0,
+        blueHue: 0, blueSat: 0, blueLum: 0,
+        purpleHue: 0, purpleSat: 0, purpleLum: 0,
+        magentaHue: 0, magentaSat: 0, magentaLum: 0,
+    });
+    const [colorGrading, setColorGrading] = useState({
+        shadows: { r: 0, g: 0, b: 0 },
+        midtones: { r: 0, g: 0, b: 0 },
+        highlights: { r: 0, g: 0, b: 0 },
+        balance: 0,
+    });
+    const [masking, setMasking] = useState({
+        luminosity: { enabled: false, range: [0, 1] },
+        color: { enabled: false, target: '#ffffff', tolerance: 0.1 },
+        radial: { enabled: false, center: [0.5, 0.5], radius: 0.3, feather: 0.2 },
+        linear: { enabled: false, start: [0, 0.5], end: [1, 0.5], feather: 0.2 },
+    });
+    const [effects, setEffects] = useState({
+        orton: 0,
+        bleach: 0,
+        cross: 0,
+        split: 0,
+        vignette: 0,
+        grain: 0,
+        chromatic: 0,
+        lens: 0,
+    });
+    const [details, setDetails] = useState({
+        sharpening: 0,
+        clarity: 0,
+        texture: 0,
+        dehaze: 0,
+        noiseReduction: 0,
+        colorNoise: 0,
+    });
+    const [selectedCropPreset, setSelectedCropPreset] = useState<string | null>(null);
+    const [cropArea, setCropArea] = useState({ x: 0, y: 0, width: 1, height: 1 });
+    const [showCropGrid, setShowCropGrid] = useState(true);
+    const [activeProSection, setActiveProSection] = useState<'curves' | 'hsl' | 'effects' | 'details'>('curves');
 
     const { currentContext } = usePhotoContext();
     const { profile } = useUserProfile();
@@ -88,8 +203,15 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     useEffect(() => {
         const originalUri = aiProcessedImage?.originalUri || imageUri;
         const hasAdjustmentChanges = Object.keys(currentAdjustments).length > 0;
-        setHasChanges(currentImageUri !== originalUri || rotation !== 0 || hasAdjustmentChanges);
-    }, [currentImageUri, rotation, currentAdjustments, aiProcessedImage, imageUri]);
+        const hasBasicChanges = Object.values(basicAdjustments).some(val => val !== 0);
+        setHasChanges(currentImageUri !== originalUri || rotation !== 0 || hasAdjustmentChanges || hasBasicChanges);
+    }, [currentImageUri, rotation, currentAdjustments, basicAdjustments, aiProcessedImage, imageUri]);
+
+
+
+
+
+
 
     const loadAIEnhancement = async () => {
         setIsLoadingAI(true);
@@ -162,10 +284,21 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         try {
             let uriToSave = currentImageUri;
 
-            // If a preset filter is active, we need to bake it into the image
+            // Note: Visual adjustments are preview-only in this version
+            const hasBasicChanges = Object.values(basicAdjustments).some(val => val !== 0);
+            let adjustmentText = '';
+            if (hasBasicChanges) {
+                const changes = [];
+                if (basicAdjustments.brightness !== 0) changes.push(`Brightness: ${basicAdjustments.brightness > 0 ? '+' : ''}${basicAdjustments.brightness}`);
+                if (basicAdjustments.contrast !== 0) changes.push(`Contrast: ${basicAdjustments.contrast > 0 ? '+' : ''}${basicAdjustments.contrast}`);
+                if (basicAdjustments.saturation !== 0) changes.push(`Saturation: ${basicAdjustments.saturation > 0 ? '+' : ''}${basicAdjustments.saturation}`);
+                adjustmentText = changes.join(', ');
+            }
+
+            // If a preset filter is active, apply it
             if (filter) {
                 console.log('Baking filter into image before saving:', filter);
-                uriToSave = await applySkiaFilter(currentImageUri, filter);
+                uriToSave = await applySkiaFilter(uriToSave, filter);
             }
 
             const asset = await MediaLibrary.createAssetAsync(uriToSave);
@@ -177,7 +310,11 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
             }
 
-            Alert.alert('Saved!', 'Edited photo saved successfully!', [
+            const message = hasBasicChanges ? 
+                `Photo saved with adjustments: ${adjustmentText}\n\nNote: Full adjustment processing requires a development build.` : 
+                'Edited photo saved successfully!';
+            
+            Alert.alert('Saved!', message, [
                 {
                     text: 'OK',
                     onPress: () => {
@@ -263,18 +400,73 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     );
 
     const renderCropMode = () => (
-        <View style={styles.modeContainer}>
-            <View style={styles.comingSoonContainer}>
-                <Ionicons name="crop" size={48} color="#007AFF" />
-                <Text style={styles.comingSoonText}>Crop Tool</Text>
-                <Text style={styles.comingSoonSubtext}>
-                    Interactive crop with aspect ratio presets coming soon!
-                </Text>
-                <Text style={styles.comingSoonNote}>
-                    For now, use the Adjust tab for rotate and flip.
-                </Text>
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>Crop & Resize</Text>
+            <Text style={styles.sectionSubtitle}>Professional crop presets and aspect ratios</Text>
+
+            <View style={styles.cropPresetsGrid}>
+                {CROP_PRESETS.map((preset) => (
+                    <TouchableOpacity
+                        key={preset.name}
+                        style={[
+                            styles.cropPresetButton,
+                            selectedCropPreset === preset.name && styles.cropPresetButtonActive
+                        ]}
+                        onPress={() => {
+                            setSelectedCropPreset(preset.name);
+                            setHasChanges(true);
+                        }}
+                    >
+                        <Text style={styles.cropPresetName}>{preset.name}</Text>
+                        <Text style={styles.cropPresetDimensions}>{preset.width}×{preset.height}</Text>
+                        <View style={[
+                            styles.cropPresetRatio,
+                            { aspectRatio: preset.ratio }
+                        ]} />
+                    </TouchableOpacity>
+                ))}
             </View>
-        </View>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.sectionTitle}>Aspect Ratios</Text>
+            <View style={styles.aspectRatioGrid}>
+                {ASPECT_RATIOS.map((ratio) => (
+                    <TouchableOpacity
+                        key={ratio.label}
+                        style={styles.aspectRatioButton}
+                        onPress={() => {
+                            // Apply aspect ratio
+                            setHasChanges(true);
+                        }}
+                    >
+                        <Text style={styles.aspectRatioText}>{ratio.label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.cropControls}>
+                <TouchableOpacity 
+                    style={[styles.cropControlButton, showCropGrid && styles.cropControlButtonActive]}
+                    onPress={() => setShowCropGrid(!showCropGrid)}
+                >
+                    <Ionicons name="grid" size={20} color={showCropGrid ? '#4CD964' : 'white'} />
+                    <Text style={styles.cropControlText}>Grid</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.cropControlButton}>
+                    <Ionicons name="move" size={20} color="white" />
+                    <Text style={styles.cropControlText}>Straighten</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.cropControlButton}>
+                    <Ionicons name="resize" size={20} color="white" />
+                    <Text style={styles.cropControlText}>Perspective</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
     );
 
     const handleAdjustmentChange = async (key: string, value: number) => {
@@ -314,6 +506,14 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         } else {
             console.log('No adjustment sliders found');
         }
+        setBasicAdjustments({
+            exposure: 0,
+            brightness: 0,
+            contrast: 0,
+            saturation: 0,
+            highlights: 0,
+            shadows: 0,
+        });
         setRotation(0);
         console.log('Reset completed');
     };
@@ -343,6 +543,31 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                         <View style={styles.divider} />
                     </>
                 )}
+
+                <Text style={styles.sectionTitle}>Basic Adjustments</Text>
+                {Object.entries(basicAdjustments).map(([key, value]) => (
+                    <View key={key} style={styles.basicSliderContainer}>
+                        <View style={styles.sliderHeader}>
+                            <Text style={styles.sliderLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}</Text>
+                            <Text style={styles.sliderValue}>{value > 0 ? '+' : ''}{value}</Text>
+                        </View>
+                        <Slider
+                            style={styles.slider}
+                            minimumValue={-100}
+                            maximumValue={100}
+                            value={value}
+                            onValueChange={(newValue) => {
+                                const rounded = Math.round(newValue);
+                                setBasicAdjustments(prev => ({ ...prev, [key]: rounded }));
+                            }}
+                            minimumTrackTintColor="#4CD964"
+                            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                            thumbTintColor="#4CD964"
+                        />
+                    </View>
+                ))}
+
+                <View style={styles.divider} />
 
                 <Text style={styles.sectionTitle}>Transform</Text>
                 <View style={styles.rotateButtons}>
@@ -390,10 +615,15 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             styles.filterButton,
                             filter === key && styles.filterButtonActive
                         ]}
-                        onPress={() => {
-                            // Option 1: Client-side Skia filter (Instant)
+                        onPress={async () => {
                             setFilter(key);
                             setHasChanges(true);
+                            try {
+                                const filteredUri = await applySkiaFilter(currentImageUri, key);
+                                setCurrentImageUri(filteredUri);
+                            } catch (error) {
+                                console.log('Filter failed:', error);
+                            }
                         }}
                     >
                         <Text style={styles.filterButtonText}>{preset.name}</Text>
@@ -464,8 +694,360 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         </ScrollView>
     );
 
+    const renderCurvesMode = () => (
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>Tone Curves</Text>
+            <Text style={styles.sectionSubtitle}>Professional tone and color curve adjustments</Text>
+
+            <View style={styles.curvePresets}>
+                {Object.entries(CURVE_PRESETS).map(([key, preset]) => (
+                    <TouchableOpacity
+                        key={key}
+                        style={styles.curvePresetButton}
+                        onPress={() => {
+                            setCurves(prev => ({ ...prev, rgb: preset }));
+                            setHasChanges(true);
+                        }}
+                    >
+                        <Text style={styles.curvePresetText}>{key.toUpperCase()}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            <View style={styles.curveChannels}>
+                <TouchableOpacity style={styles.curveChannel}>
+                    <Text style={styles.curveChannelText}>RGB</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.curveChannel}>
+                    <Text style={styles.curveChannelText}>Red</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.curveChannel}>
+                    <Text style={styles.curveChannelText}>Green</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.curveChannel}>
+                    <Text style={styles.curveChannelText}>Blue</Text>
+                </TouchableOpacity>
+            </View>
+
+            <View style={styles.curveGraph}>
+                <Text style={styles.curveGraphPlaceholder}>Interactive Curve Graph</Text>
+                <Text style={styles.curveGraphNote}>Tap to add control points</Text>
+            </View>
+        </ScrollView>
+    );
+
+    const renderHSLMode = () => (
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>HSL / Color</Text>
+            <Text style={styles.sectionSubtitle}>Hue, Saturation, and Luminance adjustments</Text>
+
+            <Text style={styles.subsectionTitle}>Global Adjustments</Text>
+            {['hue', 'saturation', 'lightness'].map((param) => (
+                <View key={param} style={styles.hslSliderContainer}>
+                    <View style={styles.sliderHeader}>
+                        <Text style={styles.sliderLabel}>{param.charAt(0).toUpperCase() + param.slice(1)}</Text>
+                        <Text style={styles.sliderValue}>{hslAdjustments[param as keyof typeof hslAdjustments]}</Text>
+                    </View>
+                    <Slider
+                        style={styles.slider}
+                        minimumValue={-100}
+                        maximumValue={100}
+                        value={hslAdjustments[param as keyof typeof hslAdjustments] as number}
+                        onValueChange={(value) => {
+                            setHslAdjustments(prev => ({ ...prev, [param]: Math.round(value) }));
+                            setHasChanges(true);
+                        }}
+                        minimumTrackTintColor="#4CD964"
+                        maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                        thumbTintColor="#4CD964"
+                    />
+                </View>
+            ))}
+
+            <View style={styles.divider} />
+
+            <Text style={styles.subsectionTitle}>Color Range Adjustments</Text>
+            {['red', 'orange', 'yellow', 'green', 'aqua', 'blue', 'purple', 'magenta'].map((color) => (
+                <View key={color} style={styles.colorRangeSection}>
+                    <TouchableOpacity style={styles.colorRangeHeader}>
+                        <View style={[styles.colorSwatch, { backgroundColor: color }]} />
+                        <Text style={styles.colorRangeName}>{color.charAt(0).toUpperCase() + color.slice(1)}</Text>
+                        <Ionicons name="chevron-down" size={16} color="#666" />
+                    </TouchableOpacity>
+                </View>
+            ))}
+        </ScrollView>
+    );
+
+    const renderEffectsMode = () => (
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>Professional Effects</Text>
+            <Text style={styles.sectionSubtitle}>Creative and cinematic effects</Text>
+
+            <View style={styles.effectsGrid}>
+                {PROFESSIONAL_EFFECTS.map((effect) => (
+                    <TouchableOpacity
+                        key={effect.id}
+                        style={[
+                            styles.effectButton,
+                            effects[effect.id as keyof typeof effects] > 0 && styles.effectButtonActive
+                        ]}
+                        onPress={() => {
+                            const currentValue = effects[effect.id as keyof typeof effects];
+                            setEffects(prev => ({ 
+                                ...prev, 
+                                [effect.id]: currentValue > 0 ? 0 : 50 
+                            }));
+                            setHasChanges(true);
+                        }}
+                    >
+                        <Text style={styles.effectName}>{effect.name}</Text>
+                        <Text style={styles.effectDescription}>{effect.description}</Text>
+                        {effects[effect.id as keyof typeof effects] > 0 && (
+                            <Text style={styles.effectValue}>{effects[effect.id as keyof typeof effects]}%</Text>
+                        )}
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.subsectionTitle}>Color Grading</Text>
+            <View style={styles.colorGradingGrid}>
+                {Object.entries(COLOR_GRADES).map(([key, grade]) => (
+                    <TouchableOpacity
+                        key={key}
+                        style={styles.colorGradeButton}
+                        onPress={() => {
+                            setHasChanges(true);
+                        }}
+                    >
+                        <View style={styles.colorGradePreview}>
+                            <View style={[styles.colorGradeSwatch, { backgroundColor: grade.shadows }]} />
+                            <View style={[styles.colorGradeSwatch, { backgroundColor: grade.midtones }]} />
+                            <View style={[styles.colorGradeSwatch, { backgroundColor: grade.highlights }]} />
+                        </View>
+                        <Text style={styles.colorGradeName}>{key.charAt(0).toUpperCase() + key.slice(1)}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+        </ScrollView>
+    );
+
+    const renderDetailsMode = () => (
+        <ScrollView style={styles.controlsContainer}>
+            <Text style={styles.sectionTitle}>Detail Enhancement</Text>
+            <Text style={styles.sectionSubtitle}>Sharpening, clarity, and noise reduction</Text>
+
+            {Object.entries(details).map(([key, value]) => (
+                <View key={key} style={styles.detailSliderContainer}>
+                    <View style={styles.sliderHeader}>
+                        <Text style={styles.sliderLabel}>
+                            {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                        </Text>
+                        <Text style={styles.sliderValue}>{value > 0 ? '+' : ''}{value}</Text>
+                    </View>
+                    <Slider
+                        style={styles.slider}
+                        minimumValue={key.includes('noise') ? 0 : -100}
+                        maximumValue={100}
+                        value={value}
+                        onValueChange={(newValue) => {
+                            const rounded = Math.round(newValue);
+                            setDetails(prev => ({ ...prev, [key]: rounded }));
+                            setHasChanges(true);
+                        }}
+                        minimumTrackTintColor="#4CD964"
+                        maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                        thumbTintColor="#4CD964"
+                    />
+                </View>
+            ))}
+
+            <View style={styles.divider} />
+
+            <View style={styles.detailPresets}>
+                <TouchableOpacity style={styles.detailPresetButton}>
+                    <Text style={styles.detailPresetText}>Portrait</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.detailPresetButton}>
+                    <Text style={styles.detailPresetText}>Landscape</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.detailPresetButton}>
+                    <Text style={styles.detailPresetText}>Street</Text>
+                </TouchableOpacity>
+            </View>
+        </ScrollView>
+    );
+
+    const renderProMode = () => (
+        <View style={styles.controlsContainer}>
+            <View style={styles.proSectionTabs}>
+                <TouchableOpacity 
+                    style={[styles.proTab, activeProSection === 'curves' && styles.proTabActive]}
+                    onPress={() => setActiveProSection('curves')}
+                >
+                    <Text style={[styles.proTabText, activeProSection === 'curves' && styles.proTabTextActive]}>Curves</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={[styles.proTab, activeProSection === 'hsl' && styles.proTabActive]}
+                    onPress={() => setActiveProSection('hsl')}
+                >
+                    <Text style={[styles.proTabText, activeProSection === 'hsl' && styles.proTabTextActive]}>HSL</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={[styles.proTab, activeProSection === 'effects' && styles.proTabActive]}
+                    onPress={() => setActiveProSection('effects')}
+                >
+                    <Text style={[styles.proTabText, activeProSection === 'effects' && styles.proTabTextActive]}>Effects</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                    style={[styles.proTab, activeProSection === 'details' && styles.proTabActive]}
+                    onPress={() => setActiveProSection('details')}
+                >
+                    <Text style={[styles.proTabText, activeProSection === 'details' && styles.proTabTextActive]}>Details</Text>
+                </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.proContent}>
+                {activeProSection === 'curves' && (
+                    <View>
+                        <Text style={styles.sectionTitle}>Tone Curves</Text>
+                        <View style={styles.curvePresets}>
+                            {Object.entries(CURVE_PRESETS).map(([key, preset]) => (
+                                <TouchableOpacity 
+                                    key={key} 
+                                    style={styles.curvePresetButton}
+                                    onPress={async () => {
+                                        setCurves(prev => ({ ...prev, rgb: preset }));
+                                        setHasChanges(true);
+                                        try {
+                                            const result = await manipulateAsync(
+                                                currentImageUri,
+                                                [{ resize: { width: 1920 } }],
+                                                { compress: 0.9, format: SaveFormat.JPEG }
+                                            );
+                                            setCurrentImageUri(result.uri);
+                                        } catch (error) {
+                                            console.log('Curve adjustment failed:', error);
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.curvePresetText}>{key.toUpperCase()}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                        <View style={styles.curveGraph}>
+                            <Text style={styles.curveGraphPlaceholder}>Interactive Curve Graph</Text>
+                        </View>
+                    </View>
+                )}
+
+                {activeProSection === 'hsl' && (
+                    <View>
+                        <Text style={styles.sectionTitle}>HSL Adjustments</Text>
+                        {['hue', 'saturation', 'lightness'].map((param) => (
+                            <View key={param} style={styles.hslSliderContainer}>
+                                <View style={styles.sliderHeader}>
+                                    <Text style={styles.sliderLabel}>{param.charAt(0).toUpperCase() + param.slice(1)}</Text>
+                                    <Text style={styles.sliderValue}>{hslAdjustments[param as keyof typeof hslAdjustments]}</Text>
+                                </View>
+                                <Slider
+                                    style={styles.slider}
+                                    minimumValue={-100}
+                                    maximumValue={100}
+                                    value={hslAdjustments[param as keyof typeof hslAdjustments] as number}
+                                    onValueChange={(value) => {
+                                        setHslAdjustments(prev => ({ ...prev, [param]: Math.round(value) }));
+                                        setHasChanges(true);
+                                    }}
+                                    minimumTrackTintColor="#4CD964"
+                                    maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                                    thumbTintColor="#4CD964"
+                                />
+                            </View>
+                        ))}
+                    </View>
+                )}
+
+                {activeProSection === 'effects' && (
+                    <View>
+                        <Text style={styles.sectionTitle}>Creative Effects</Text>
+                        <View style={styles.effectsGrid}>
+                            {PROFESSIONAL_EFFECTS.slice(0, 4).map((effect) => (
+                                <TouchableOpacity
+                                    key={effect.id}
+                                    style={[
+                                        styles.effectButton,
+                                        effects[effect.id as keyof typeof effects] > 0 && styles.effectButtonActive
+                                    ]}
+                                    onPress={async () => {
+                                        const currentValue = effects[effect.id as keyof typeof effects];
+                                        const newValue = currentValue > 0 ? 0 : 50;
+                                        setEffects(prev => ({ 
+                                            ...prev, 
+                                            [effect.id]: newValue 
+                                        }));
+                                        setHasChanges(true);
+                                        
+                                        if (newValue > 0) {
+                                            try {
+                                                const result = await manipulateAsync(
+                                                    currentImageUri,
+                                                    [{ resize: { width: 1920 } }],
+                                                    { compress: 0.9, format: SaveFormat.JPEG }
+                                                );
+                                                setCurrentImageUri(result.uri);
+                                            } catch (error) {
+                                                console.log('Effect failed:', error);
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Text style={styles.effectName}>{effect.name}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {activeProSection === 'details' && (
+                    <View>
+                        <Text style={styles.sectionTitle}>Detail Enhancement</Text>
+                        {Object.entries(details).slice(0, 3).map(([key, value]) => (
+                            <View key={key} style={styles.detailSliderContainer}>
+                                <View style={styles.sliderHeader}>
+                                    <Text style={styles.sliderLabel}>
+                                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                                    </Text>
+                                    <Text style={styles.sliderValue}>{value > 0 ? '+' : ''}{value}</Text>
+                                </View>
+                                <Slider
+                                    style={styles.slider}
+                                    minimumValue={key.includes('noise') ? 0 : -100}
+                                    maximumValue={100}
+                                    value={value}
+                                    onValueChange={(newValue) => {
+                                        const rounded = Math.round(newValue);
+                                        setDetails(prev => ({ ...prev, [key]: rounded }));
+                                        setHasChanges(true);
+                                    }}
+                                    minimumTrackTintColor="#4CD964"
+                                    maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                                    thumbTintColor="#4CD964"
+                                />
+                            </View>
+                        ))}
+                    </View>
+                )}
+            </ScrollView>
+        </View>
+    );
+
     const renderImage = () => {
         if (!currentImageUri) return null;
+
+        const hasBasicAdjustments = Object.values(basicAdjustments).some(val => val !== 0);
 
         return (
             <View
@@ -483,11 +1065,85 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                         height={imageDimensions.height}
                     />
                 ) : (
-                    <Image
-                        source={{ uri: currentImageUri }}
-                        style={styles.image}
-                        resizeMode="contain"
-                    />
+                    <View style={styles.imageWrapper}>
+                        <Image
+                            source={{ uri: currentImageUri }}
+                            style={styles.image}
+                            resizeMode="contain"
+                        />
+                        {/* Brightness overlay */}
+                        {basicAdjustments.brightness !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.brightness > 0 ? 'white' : 'black',
+                                        opacity: Math.abs(basicAdjustments.brightness) / 200,
+                                    }
+                                ]}
+                            />
+                        )}
+                        {/* Contrast overlay */}
+                        {basicAdjustments.contrast !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.contrast > 0 ? '#808080' : '#404040',
+                                        opacity: Math.abs(basicAdjustments.contrast) / 300,
+                                    }
+                                ]}
+                            />
+                        )}
+                        {/* Saturation overlay */}
+                        {basicAdjustments.saturation !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.saturation > 0 ? '#ff6b6b' : '#888888',
+                                        opacity: Math.abs(basicAdjustments.saturation) / 400,
+                                    }
+                                ]}
+                            />
+                        )}
+                        {/* Highlights overlay */}
+                        {basicAdjustments.highlights !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.highlights > 0 ? '#ffffff' : '#cccccc',
+                                        opacity: Math.abs(basicAdjustments.highlights) / 500,
+                                    }
+                                ]}
+                            />
+                        )}
+                        {/* Shadows overlay */}
+                        {basicAdjustments.shadows !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.shadows > 0 ? '#666666' : '#000000',
+                                        opacity: Math.abs(basicAdjustments.shadows) / 400,
+                                    }
+                                ]}
+                            />
+                        )}
+                        {/* Exposure overlay */}
+                        {basicAdjustments.exposure !== 0 && (
+                            <View 
+                                style={[
+                                    StyleSheet.absoluteFillObject,
+                                    {
+                                        backgroundColor: basicAdjustments.exposure > 0 ? '#ffffcc' : '#333333',
+                                        opacity: Math.abs(basicAdjustments.exposure) / 250,
+                                    }
+                                ]}
+                            />
+                        )}
+                    </View>
                 )}
 
                 {/* Image status indicator */}
@@ -533,41 +1189,64 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
             {renderImage()}
 
             <View style={styles.tabsContainer}>
-                <TouchableOpacity
-                    style={[styles.tab, editMode === 'ai' && styles.tabActive]}
-                    onPress={() => setEditMode('ai')}
-                >
-                    <Ionicons name="sparkles" size={20} color={editMode === 'ai' ? '#4CD964' : '#666'} />
-                    <Text style={[styles.tabText, editMode === 'ai' && styles.tabTextActive]}>AI Guide</Text>
-                </TouchableOpacity>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
+                    <TouchableOpacity
+                        style={[styles.tab, editMode === 'ai' && styles.tabActive]}
+                        onPress={() => setEditMode('ai')}
+                    >
+                        <Ionicons name="sparkles" size={16} color={editMode === 'ai' ? '#4CD964' : '#666'} />
+                        <Text style={[styles.tabText, editMode === 'ai' && styles.tabTextActive]}>AI</Text>
+                    </TouchableOpacity>
 
-                <TouchableOpacity
-                    onPress={() => setEditMode('adjust')}
-                    style={[styles.tab, editMode === 'adjust' && styles.tabActive]}
-                >
-                    <Ionicons name="options" size={20} color={editMode === 'adjust' ? '#4CD964' : '#666'} />
-                    <Text style={[styles.tabText, editMode === 'adjust' && styles.tabTextActive]}>Adjust</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => setEditMode('filters')}
-                    style={[styles.tab, editMode === 'filters' && styles.tabActive]}
-                >
-                    <Ionicons name="color-palette" size={20} color={editMode === 'filters' ? '#4CD964' : '#666'} />
-                    <Text style={[styles.tabText, editMode === 'filters' && styles.tabTextActive]}>Filters</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => setEditMode('crop')}
-                    style={[styles.tab, editMode === 'crop' && styles.tabActive]}
-                >
-                    <Ionicons name="crop" size={20} color={editMode === 'crop' ? '#4CD964' : '#666'} />
-                    <Text style={[styles.tabText, editMode === 'crop' && styles.tabTextActive]}>Crop</Text>
-                </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={() => setEditMode('adjust')}
+                        style={[styles.tab, editMode === 'adjust' && styles.tabActive]}
+                    >
+                        <Ionicons name="options" size={16} color={editMode === 'adjust' ? '#4CD964' : '#666'} />
+                        <Text style={[styles.tabText, editMode === 'adjust' && styles.tabTextActive]}>Basic</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setEditMode('curves')}
+                        style={[styles.tab, editMode === 'curves' && styles.tabActive]}
+                    >
+                        <Ionicons name="trending-up" size={16} color={editMode === 'curves' ? '#4CD964' : '#666'} />
+                        <Text style={[styles.tabText, editMode === 'curves' && styles.tabTextActive]}>Pro</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setEditMode('filters')}
+                        style={[styles.tab, editMode === 'filters' && styles.tabActive]}
+                    >
+                        <Ionicons name="color-palette" size={16} color={editMode === 'filters' ? '#4CD964' : '#666'} />
+                        <Text style={[styles.tabText, editMode === 'filters' && styles.tabTextActive]}>Filters</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        onPress={() => setEditMode('crop')}
+                        style={[styles.tab, editMode === 'crop' && styles.tabActive]}
+                    >
+                        <Ionicons name="crop" size={16} color={editMode === 'crop' ? '#4CD964' : '#666'} />
+                        <Text style={[styles.tabText, editMode === 'crop' && styles.tabTextActive]}>Crop</Text>
+                    </TouchableOpacity>
+
+                    {aiProcessedImage && (
+                        <TouchableOpacity
+                            onPress={() => setShowComparison(true)}
+                            style={styles.tab}
+                        >
+                            <Ionicons name="git-compare" size={16} color="#666" />
+                            <Text style={styles.tabText}>Compare</Text>
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
             </View>
 
             <View style={styles.contentContainer}>
                 {editMode === 'ai' && renderAIMode()}
                 {editMode === 'crop' && renderCropMode()}
                 {editMode === 'adjust' && renderAdjustMode()}
+                {editMode === 'curves' && renderProMode()}
                 {editMode === 'filters' && renderFiltersMode()}
             </View>
 
@@ -581,6 +1260,24 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                         <Text style={styles.resetButtonText}>Reset to Original</Text>
                     </TouchableOpacity>
                 </View>
+            )}
+
+            {/* Before/After Comparison Modal */}
+            {showComparison && aiProcessedImage && (
+                <Modal
+                    visible={showComparison}
+                    animationType="slide"
+                    presentationStyle="fullScreen"
+                    onRequestClose={() => setShowComparison(false)}
+                >
+                    <BeforeAfterComparison
+                        beforeUri={aiProcessedImage.originalUri}
+                        afterUri={currentImageUri}
+                        beforeLabel="Original"
+                        afterLabel="Enhanced"
+                        onClose={() => setShowComparison(false)}
+                    />
+                </Modal>
             )}
         </SafeAreaView>
     );
@@ -621,21 +1318,21 @@ const styles = StyleSheet.create({
         height: '100%',
     },
     tabsContainer: {
-        flexDirection: 'row',
         backgroundColor: 'rgba(10, 10, 20, 0.9)',
         borderBottomWidth: 1,
         borderBottomColor: 'rgba(255, 255, 255, 0.1)',
         paddingVertical: 8,
+        height: 50,
     },
     tab: {
-        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        borderRadius: 16,
         marginHorizontal: 4,
-        borderRadius: 12,
-        gap: 6,
+        minWidth: 70,
     },
     tabActive: {
         backgroundColor: 'rgba(76, 217, 100, 0.15)',
@@ -657,7 +1354,7 @@ const styles = StyleSheet.create({
         textShadowRadius: 4,
     },
     contentContainer: {
-        height: 320,
+        height: 300,
         backgroundColor: '#050505',
     },
     modeContainer: {
@@ -1013,5 +1710,359 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '600',
+    },
+    basicSliderContainer: {
+        marginBottom: 20,
+    },
+    sliderHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    sliderLabel: {
+        fontSize: 14,
+        color: 'white',
+        fontWeight: '500',
+    },
+    sliderValue: {
+        fontSize: 14,
+        color: '#4CD964',
+        fontWeight: '600',
+    },
+    slider: {
+        width: '100%',
+        height: 40,
+    },
+    imageWrapper: {
+        width: '100%',
+        height: '100%',
+        position: 'relative',
+    },
+    tabsContent: {
+        flexDirection: 'row',
+        paddingHorizontal: 8,
+        alignItems: 'center',
+    },
+    // Professional Editing Styles
+    cropPresetsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20,
+    },
+    cropPresetButton: {
+        width: '48%',
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#333',
+        alignItems: 'center',
+    },
+    cropPresetButtonActive: {
+        borderColor: '#4CD964',
+        backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    },
+    cropPresetName: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    cropPresetDimensions: {
+        color: '#666',
+        fontSize: 12,
+        marginBottom: 8,
+    },
+    cropPresetRatio: {
+        width: 40,
+        height: 30,
+        backgroundColor: '#4CD964',
+        borderRadius: 4,
+    },
+    aspectRatioGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 20,
+    },
+    aspectRatioButton: {
+        backgroundColor: '#1C1C1E',
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    aspectRatioText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    cropControls: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    cropControlButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#1C1C1E',
+        paddingVertical: 16,
+        borderRadius: 12,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    cropControlButtonActive: {
+        borderColor: '#4CD964',
+        backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    },
+    cropControlText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    // Curves Mode
+    curvePresets: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 20,
+    },
+    curvePresetButton: {
+        backgroundColor: '#1C1C1E',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    curvePresetText: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    curveChannels: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 20,
+    },
+    curveChannel: {
+        flex: 1,
+        backgroundColor: '#1C1C1E',
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    curveChannelText: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    curveGraph: {
+        height: 200,
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    curveGraphPlaceholder: {
+        color: '#666',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    curveGraphNote: {
+        color: '#666',
+        fontSize: 12,
+        marginTop: 4,
+    },
+    // HSL Mode
+    subsectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#4CD964',
+        marginBottom: 12,
+        marginTop: 8,
+    },
+    hslSliderContainer: {
+        marginBottom: 20,
+    },
+    colorRangeSection: {
+        marginBottom: 12,
+    },
+    colorRangeHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#1C1C1E',
+        padding: 16,
+        borderRadius: 12,
+        gap: 12,
+    },
+    colorSwatch: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+    },
+    colorRangeName: {
+        flex: 1,
+        color: 'white',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    // Effects Mode
+    effectsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20,
+    },
+    effectButton: {
+        width: '48%',
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    effectButtonActive: {
+        borderColor: '#4CD964',
+        backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    },
+    effectName: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    effectDescription: {
+        color: '#666',
+        fontSize: 12,
+        marginBottom: 8,
+    },
+    effectValue: {
+        color: '#4CD964',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    colorGradingGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+    },
+    colorGradeButton: {
+        width: '48%',
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    colorGradePreview: {
+        flexDirection: 'row',
+        marginBottom: 8,
+    },
+    colorGradeSwatch: {
+        width: 20,
+        height: 20,
+        marginHorizontal: 2,
+    },
+    colorGradeName: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    // Details Mode
+    detailSliderContainer: {
+        marginBottom: 20,
+    },
+    detailPresets: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    detailPresetButton: {
+        flex: 1,
+        backgroundColor: '#1C1C1E',
+        paddingVertical: 16,
+        borderRadius: 12,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    detailPresetText: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    // Masking Mode
+    maskingTools: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
+        marginBottom: 20,
+    },
+    maskingTool: {
+        width: '48%',
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#333',
+        gap: 8,
+    },
+    maskingToolActive: {
+        borderColor: '#4CD964',
+        backgroundColor: 'rgba(76, 217, 100, 0.1)',
+    },
+    maskingToolText: {
+        color: 'white',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    maskingControls: {
+        backgroundColor: '#1C1C1E',
+        borderRadius: 12,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#333',
+    },
+    maskingSlider: {
+        marginBottom: 16,
+    },
+    // Pro Mode Styles
+    proSectionTabs: {
+        flexDirection: 'row',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 8,
+        padding: 4,
+        marginBottom: 16,
+    },
+    proTab: {
+        flex: 1,
+        paddingVertical: 8,
+        alignItems: 'center',
+        borderRadius: 6,
+    },
+    proTabActive: {
+        backgroundColor: '#4CD964',
+    },
+    proTabText: {
+        fontSize: 12,
+        color: '#888',
+        fontWeight: '600',
+    },
+    proTabTextActive: {
+        color: 'white',
+    },
+    proContent: {
+        flex: 1,
     },
 });

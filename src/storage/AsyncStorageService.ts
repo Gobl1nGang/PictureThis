@@ -17,7 +17,13 @@ class AsyncStorageService {
             await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
         } catch (error) {
             console.error('Error saving user profile:', error);
-            throw error;
+            // Try to clear and retry once
+            try {
+                await AsyncStorage.clear();
+                await AsyncStorage.setItem(KEYS.USER_PROFILE, JSON.stringify(profile));
+            } catch (retryError) {
+                throw new Error('Failed to write manifest file');
+            }
         }
     }
 

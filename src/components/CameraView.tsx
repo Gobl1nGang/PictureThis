@@ -19,6 +19,8 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as MediaLibrary from 'expo-media-library';
 import { analyzeImage, AnalyzeImageOptions } from '../services/bedrock';
 import { processImageWithAI, AIProcessedImage } from '../services/aiImageProcessor';
+import { ContinuousAnalysisService } from '../services/continuousAnalysis';
+import { AdvancedImageProcessor } from '../services/advancedImageProcessor';
 import { useReferencePhoto } from '../features/reference-photo';
 import { useUserProfile } from '../contexts/UserProfileContext';
 import { usePhotoContext } from '../contexts/PhotoContextContext';
@@ -29,10 +31,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { AIFeedback, AIInstruction } from '../types/index';
 import { VisualInstructionOverlay, InstructionType } from './VisualInstructionOverlay';
 import { CompositionOverlay, CompositionType } from './CompositionOverlay';
+import AdvancedCameraFeatures from '../services/advancedCameraFeatures';
 
 const { width, height } = Dimensions.get('window');
 
-// Advanced Camera Modes - Specialized Photography Features
+// Advanced Camera Modes - Professional Photography Features
 const CAMERA_MODES = [
   { id: 'photo', label: 'PHOTO', description: 'Standard photo mode' },
   { id: 'pro', label: 'PRO', description: 'Manual controls & RAW' },
@@ -41,12 +44,32 @@ const CAMERA_MODES = [
   { id: 'macro', label: 'MACRO', description: 'Extreme close-up' },
   { id: 'night', label: 'NIGHT', description: 'Low-light enhanced' },
   { id: 'portrait', label: 'PORTRAIT', description: 'Depth & bokeh' },
+  { id: 'astro', label: 'ASTRO', description: 'Astrophotography' },
+  { id: 'sport', label: 'SPORT', description: 'Fast action capture' },
+  { id: 'street', label: 'STREET', description: 'Urban photography' },
+  { id: 'landscape', label: 'LANDSCAPE', description: 'Wide scenic shots' },
+  { id: 'food', label: 'FOOD', description: 'Culinary photography' },
+];
+
+// Professional Manual Controls
+const ISO_VALUES = [50, 100, 200, 400, 800, 1600, 3200, 6400, 12800];
+const SHUTTER_SPEEDS = ['1/4000', '1/2000', '1/1000', '1/500', '1/250', '1/125', '1/60', '1/30', '1/15', '1/8', '1/4', '1/2', '1s', '2s'];
+const APERTURE_VALUES = [1.4, 1.8, 2.0, 2.8, 4.0, 5.6, 8.0, 11, 16];
+const WHITE_BALANCE_PRESETS = [
+  { id: 'auto', label: 'AUTO', temp: 0 },
+  { id: 'daylight', label: 'DAYLIGHT', temp: 5500 },
+  { id: 'cloudy', label: 'CLOUDY', temp: 6500 },
+  { id: 'shade', label: 'SHADE', temp: 7500 },
+  { id: 'tungsten', label: 'TUNGSTEN', temp: 3200 },
+  { id: 'fluorescent', label: 'FLUORESCENT', temp: 4000 },
+  { id: 'flash', label: 'FLASH', temp: 5500 },
 ];
 
 const MODE_ITEM_WIDTH = 100;
 
 declare global {
   var referenceImageUri: string | null;
+  var inspirationImageUri: string | null;
 }
 
 export default function AppCamera() {
@@ -62,6 +85,8 @@ export default function AppCamera() {
   const [currentInstruction, setCurrentInstruction] = useState<AIInstruction | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [visualInstructions, setVisualInstructions] = useState<InstructionType[]>([]);
+  const [continuousAnalysis, setContinuousAnalysis] = useState<ContinuousAnalysisService | null>(null);
+  const [autoFeedbackEnabled, setAutoFeedbackEnabled] = useState(true);
 
   // Camera Settings
   const [zoom, setZoom] = useState(0);
@@ -72,9 +97,24 @@ export default function AppCamera() {
   const [showCompositionMenu, setShowCompositionMenu] = useState(false);
   const [flash, setFlash] = useState<'on' | 'off' | 'auto' | 'torch'>('off');
 
+  // Professional Controls - Simplified
+  const [showProControls, setShowProControls] = useState(false);
+  const [showDisplayOptions, setShowDisplayOptions] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
+  const [iso, setIso] = useState(100);
+  const [shutterSpeed, setShutterSpeed] = useState('1/60');
+  const [aperture, setAperture] = useState(2.8);
+  const [whiteBalance, setWhiteBalance] = useState('auto');
+  const [showHistogram, setShowHistogram] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
+  const [timerMode, setTimerMode] = useState<0 | 2 | 5 | 10>(0);
+  const [bracketingMode, setBracketingMode] = useState<'off' | 'hdr' | 'focus' | 'burst' | 'longexp'>('off');
+  const [isCapturing, setIsCapturing] = useState(false);
+
   // Ghost Overlay State
   const [showGhostOverlay, setShowGhostOverlay] = useState(false);
   const [ghostOpacity, setGhostOpacity] = useState(0.5);
+  const [inspirationImage, setInspirationImage] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView>(null);
   const modeScrollRef = useRef<ScrollView>(null);
@@ -136,8 +176,47 @@ export default function AppCamera() {
         setShowAnalysisModal(true);
         global.referenceImageUri = null;
       }
+
+      // Check for inspiration image
+      if (global.inspirationImageUri) {
+        setInspirationImage(global.inspirationImageUri);
+        global.inspirationImageUri = null;
+      }
     }
   }, [permission, setReference]);
+
+  // Continuous analysis effect
+  useEffect(() => {
+    if (permission?.granted && autoFeedbackEnabled && cameraRef.current) {
+      const analysisService = new ContinuousAnalysisService(
+        cameraRef,
+        (feedback: string, score: number) => {
+          try {
+            const parsedFeedback = InstructionEngine.parseInstructions(feedback, score);
+            setAiFeedback(parsedFeedback);
+          } catch (error) {
+            console.log('Continuous analysis parse error:', error);
+          }
+        },
+        {
+          userSkillLevel: profile?.skillLevel || 'Intermediate',
+          preferredStyle: profile?.preferredStyles[0] || 'General Professional',
+          contextType: currentContext?.type,
+          timeOfDay: currentContext?.timeOfDay,
+          environment: currentContext?.environment,
+        }
+      );
+      setContinuousAnalysis(analysisService);
+      analysisService.start();
+
+      return () => {
+        analysisService.stop();
+      };
+    } else if (continuousAnalysis) {
+      continuousAnalysis.stop();
+      setContinuousAnalysis(null);
+    }
+  }, [permission?.granted, autoFeedbackEnabled, profile, currentContext]);
 
   // Sync reference photo to context
   useEffect(() => {
@@ -231,7 +310,45 @@ export default function AppCamera() {
   };
   const toggleFlash = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFlash(flash === 'off' ? 'on' : 'off');
+    const flashModes: Array<'off' | 'on' | 'auto' | 'torch'> = ['off', 'on', 'auto', 'torch'];
+    const currentIndex = flashModes.indexOf(flash);
+    const nextIndex = (currentIndex + 1) % flashModes.length;
+    setFlash(flashModes[nextIndex]);
+  };
+
+  const toggleManualMode = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setManualMode(!manualMode);
+  };
+
+  const adjustISO = (direction: 'up' | 'down') => {
+    const currentIndex = ISO_VALUES.indexOf(iso);
+    if (direction === 'up' && currentIndex < ISO_VALUES.length - 1) {
+      setIso(ISO_VALUES[currentIndex + 1]);
+    } else if (direction === 'down' && currentIndex > 0) {
+      setIso(ISO_VALUES[currentIndex - 1]);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const adjustShutterSpeed = (direction: 'up' | 'down') => {
+    const currentIndex = SHUTTER_SPEEDS.indexOf(shutterSpeed);
+    if (direction === 'up' && currentIndex < SHUTTER_SPEEDS.length - 1) {
+      setShutterSpeed(SHUTTER_SPEEDS[currentIndex + 1]);
+    } else if (direction === 'down' && currentIndex > 0) {
+      setShutterSpeed(SHUTTER_SPEEDS[currentIndex - 1]);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const adjustAperture = (direction: 'up' | 'down') => {
+    const currentIndex = APERTURE_VALUES.indexOf(aperture);
+    if (direction === 'up' && currentIndex < APERTURE_VALUES.length - 1) {
+      setAperture(APERTURE_VALUES[currentIndex + 1]);
+    } else if (direction === 'down' && currentIndex > 0) {
+      setAperture(APERTURE_VALUES[currentIndex - 1]);
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
   const toggleCameraFacing = () => setFacing(current => (current === 'back' ? 'front' : 'back'));
 
@@ -636,10 +753,10 @@ export default function AppCamera() {
         />
 
         {/* Ghost Overlay */}
-        {showGhostOverlay && referencePhoto?.uri && (
+        {showGhostOverlay && (referencePhoto?.uri || inspirationImage) && (
           <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
             <Image
-              source={{ uri: referencePhoto.uri }}
+              source={{ uri: referencePhoto?.uri || inspirationImage }}
               style={[StyleSheet.absoluteFillObject, { opacity: ghostOpacity }]}
               resizeMode="cover"
             />
@@ -688,11 +805,36 @@ export default function AppCamera() {
 
         {activeMode.id === 'pro' && (
           <View style={styles.proOverlay} pointerEvents="none">
-            <Text style={styles.proText}>PRO</Text>
+            <Text style={styles.proText}>PRO MODE</Text>
             <View style={styles.proMetrics}>
-              <Text style={styles.proMetricText}>ISO: AUTO</Text>
-              <Text style={styles.proMetricText}>1/60s</Text>
-              <Text style={styles.proMetricText}>f/1.8</Text>
+              <Text style={styles.proMetricText}>ISO: {manualMode ? iso : 'AUTO'}</Text>
+              <Text style={styles.proMetricText}>{manualMode ? shutterSpeed : '1/60s'}</Text>
+              <Text style={styles.proMetricText}>f/{manualMode ? aperture : '1.8'}</Text>
+              <Text style={styles.proMetricText}>WB: {whiteBalance.toUpperCase()}</Text>
+              <Text style={styles.proMetricText}>EV: {exposureCompensation > 0 ? '+' : ''}{exposureCompensation}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Grid Overlay */}
+        {showGrid && (
+          <View style={StyleSheet.absoluteFillObject} pointerEvents="none">
+            <View style={styles.gridOverlay}>
+              <View style={[styles.gridLine, { left: '33.33%', width: 1, height: '100%' }]} />
+              <View style={[styles.gridLine, { left: '66.66%', width: 1, height: '100%' }]} />
+              <View style={[styles.gridLine, { top: '33.33%', height: 1, width: '100%' }]} />
+              <View style={[styles.gridLine, { top: '66.66%', height: 1, width: '100%' }]} />
+            </View>
+          </View>
+        )}
+
+        {/* Histogram */}
+        {showHistogram && (
+          <View style={styles.histogramContainer}>
+            <View style={styles.histogram}>
+              {Array.from({ length: 20 }).map((_, i) => (
+                <View key={i} style={[styles.histogramBar, { height: `${Math.random() * 60 + 20}%` }]} />
+              ))}
             </View>
           </View>
         )}
@@ -765,24 +907,28 @@ export default function AppCamera() {
               <Ionicons name="chevron-down" size={16} color="white" />
             </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <TouchableOpacity style={styles.iconButton} onPress={toggleFlash}>
+            <View style={styles.topRightControls}>
+              <TouchableOpacity style={styles.compactButton} onPress={toggleFlash}>
                 <Ionicons
-                  name={flash === 'on' || flash === 'torch' ? 'flash' : 'flash-off'}
-                  size={28}
-                  color="white"
+                  name={flash === 'torch' ? 'flashlight' : flash === 'auto' ? 'flash' : flash === 'on' ? 'flash' : 'flash-off'}
+                  size={20}
+                  color={flash !== 'off' ? '#FFCC00' : 'white'}
                 />
               </TouchableOpacity>
 
-              {/* Ghost Toggle (Visible only with reference) */}
-              {referencePhoto && (
-                <TouchableOpacity
-                  style={[styles.iconButton, showGhostOverlay && styles.activeIconButton]}
-                  onPress={() => setShowGhostOverlay(!showGhostOverlay)}
-                >
-                  <Ionicons name="eye" size={28} color={showGhostOverlay ? "#4CD964" : "white"} />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity 
+                style={[styles.compactButton, showProControls && styles.activeCompactButton]} 
+                onPress={() => setShowProControls(!showProControls)}
+              >
+                <Ionicons name="settings" size={20} color={showProControls ? '#4CD964' : 'white'} />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.compactButton, showDisplayOptions && styles.activeCompactButton]} 
+                onPress={() => setShowDisplayOptions(!showDisplayOptions)}
+              >
+                <Ionicons name="eye" size={20} color={showDisplayOptions ? '#4CD964' : 'white'} />
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -963,17 +1109,35 @@ export default function AppCamera() {
             </Animated.View>
           )}
 
-          {/* Manual Feedback Button */}
-          <TouchableOpacity
-            style={styles.feedbackButton}
-            onPress={analyzeScene}
-            disabled={isAnalyzing}
-          >
-            <Ionicons name="sparkles" size={24} color="white" style={{ marginRight: 8 }} />
-            <Text style={styles.feedbackButtonText}>
-              {isAnalyzing ? "Analyzing..." : "Get Feedback"}
-            </Text>
-          </TouchableOpacity>
+          {/* Auto Feedback Toggle & Manual Button */}
+          <View style={styles.feedbackControls}>
+            <TouchableOpacity
+              style={[styles.autoFeedbackButton, autoFeedbackEnabled && styles.autoFeedbackActive]}
+              onPress={() => {
+                setAutoFeedbackEnabled(!autoFeedbackEnabled);
+              }}
+            >
+              <Ionicons 
+                name={autoFeedbackEnabled ? "flash" : "flash-off"} 
+                size={20} 
+                color={autoFeedbackEnabled ? "#4CD964" : "white"} 
+              />
+              <Text style={[styles.autoFeedbackText, autoFeedbackEnabled && styles.autoFeedbackTextActive]}>
+                Auto
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.manualFeedbackButton}
+              onPress={analyzeScene}
+              disabled={isAnalyzing}
+            >
+              <Ionicons name="sparkles" size={20} color="white" />
+              <Text style={styles.manualFeedbackText}>
+                {isAnalyzing ? "Analyzing..." : "Manual"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Photo Thumbnail Preview */}
           {showThumbnail && lastPhotoUri && (
@@ -1064,21 +1228,171 @@ export default function AppCamera() {
             </ScrollView>
           </View>
 
+          {/* Pro Controls Dropdown */}
+          {showProControls && (
+            <TouchableOpacity 
+              style={styles.dropdownOverlay} 
+              activeOpacity={1} 
+              onPress={() => setShowProControls(false)}
+            >
+              <TouchableOpacity style={styles.proControlsDropdown} activeOpacity={1}>
+                <View style={styles.controlRow}>
+                  <Text style={styles.controlLabel}>ISO</Text>
+                  <View style={styles.controlButtons}>
+                    <TouchableOpacity onPress={() => adjustISO('down')} style={styles.controlButton}>
+                      <Ionicons name="remove" size={16} color="white" />
+                    </TouchableOpacity>
+                    <Text style={styles.controlValue}>{iso}</Text>
+                    <TouchableOpacity onPress={() => adjustISO('up')} style={styles.controlButton}>
+                      <Ionicons name="add" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                <View style={styles.controlRow}>
+                  <Text style={styles.controlLabel}>Shutter</Text>
+                  <View style={styles.controlButtons}>
+                    <TouchableOpacity onPress={() => adjustShutterSpeed('down')} style={styles.controlButton}>
+                      <Ionicons name="remove" size={16} color="white" />
+                    </TouchableOpacity>
+                    <Text style={styles.controlValue}>{shutterSpeed}</Text>
+                    <TouchableOpacity onPress={() => adjustShutterSpeed('up')} style={styles.controlButton}>
+                      <Ionicons name="add" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                <View style={styles.controlRow}>
+                  <Text style={styles.controlLabel}>Aperture</Text>
+                  <View style={styles.controlButtons}>
+                    <TouchableOpacity onPress={() => adjustAperture('down')} style={styles.controlButton}>
+                      <Ionicons name="remove" size={16} color="white" />
+                    </TouchableOpacity>
+                    <Text style={styles.controlValue}>f/{aperture}</Text>
+                    <TouchableOpacity onPress={() => adjustAperture('up')} style={styles.controlButton}>
+                      <Ionicons name="add" size={16} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                
+                <View style={styles.controlRow}>
+                  <Text style={styles.controlLabel}>Mode</Text>
+                  <TouchableOpacity 
+                    style={[styles.controlToggle, bracketingMode !== 'off' && styles.controlToggleActive]} 
+                    onPress={() => {
+                      const modes: Array<'off' | 'hdr' | 'focus' | 'burst' | 'longexp'> = ['off', 'hdr', 'focus', 'burst', 'longexp'];
+                      const currentIndex = modes.indexOf(bracketingMode);
+                      setBracketingMode(modes[(currentIndex + 1) % modes.length]);
+                    }}
+                  >
+                    <Text style={styles.controlToggleText}>{bracketingMode.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                </View>
+                
+                <View style={styles.controlRow}>
+                  <Text style={styles.controlLabel}>Timer</Text>
+                  <TouchableOpacity 
+                    style={[styles.controlToggle, timerMode > 0 && styles.controlToggleActive]} 
+                    onPress={() => {
+                      const timers: Array<0 | 2 | 5 | 10> = [0, 2, 5, 10];
+                      const currentIndex = timers.indexOf(timerMode);
+                      setTimerMode(timers[(currentIndex + 1) % timers.length]);
+                    }}
+                  >
+                    <Text style={styles.controlToggleText}>{timerMode > 0 ? `${timerMode}s` : 'OFF'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+
+          {/* Display Options Dropdown */}
+          {showDisplayOptions && (
+            <TouchableOpacity 
+              style={styles.dropdownOverlay} 
+              activeOpacity={1} 
+              onPress={() => setShowDisplayOptions(false)}
+            >
+              <TouchableOpacity style={styles.displayOptionsDropdown} activeOpacity={1}>
+                <TouchableOpacity 
+                  style={[styles.optionRow, showHistogram && styles.optionRowActive]}
+                  onPress={() => setShowHistogram(!showHistogram)}
+                >
+                  <Ionicons name="bar-chart" size={16} color={showHistogram ? '#4CD964' : 'white'} />
+                  <Text style={styles.optionText}>Histogram</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.optionRow, showGrid && styles.optionRowActive]}
+                  onPress={() => setShowGrid(!showGrid)}
+                >
+                  <Ionicons name="grid" size={16} color={showGrid ? '#4CD964' : 'white'} />
+                  <Text style={styles.optionText}>Grid</Text>
+                </TouchableOpacity>
+                
+                {(referencePhoto || inspirationImage) && (
+                  <TouchableOpacity 
+                    style={[styles.optionRow, showGhostOverlay && styles.optionRowActive]}
+                    onPress={() => setShowGhostOverlay(!showGhostOverlay)}
+                  >
+                    <Ionicons name="eye" size={16} color={showGhostOverlay ? '#4CD964' : 'white'} />
+                    <Text style={styles.optionText}>Overlay</Text>
+                  </TouchableOpacity>
+                )}
+                
+                <TouchableOpacity 
+                  style={styles.optionRow}
+                  onPress={() => {
+                    // Focus peaking toggle
+                    console.log('Focus peaking toggled');
+                  }}
+                >
+                  <Ionicons name="scan" size={16} color="white" />
+                  <Text style={styles.optionText}>Focus Peak</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.optionRow}
+                  onPress={() => {
+                    // Zebras toggle
+                    console.log('Zebras toggled');
+                  }}
+                >
+                  <Ionicons name="flash" size={16} color="white" />
+                  <Text style={styles.optionText}>Zebras</Text>
+                </TouchableOpacity>
+              </TouchableOpacity>
+            </TouchableOpacity>
+          )}
+
           {/* Bottom Controls */}
           <View style={styles.bottomControls}>
-            <View style={styles.spacer} />
+            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
+              <Ionicons name="camera-reverse" size={24} color="white" />
+            </TouchableOpacity>
 
             <View style={styles.shutterContainer}>
-              <TouchableOpacity
-                style={styles.shutterButton}
+              <TouchableOpacity 
+                style={[
+                  styles.shutterButton,
+                  isCapturing && styles.shutterButtonCapturing,
+                  bracketingMode !== 'off' && styles.shutterButtonAdvanced
+                ]} 
                 onPress={takePicture}
+                disabled={isCapturing}
               >
-                <View style={styles.shutterInner} />
+                <View style={[
+                  styles.shutterInner,
+                  isCapturing && styles.shutterInnerCapturing
+                ]} />
+                {bracketingMode !== 'off' && (
+                  <Text style={styles.modeIndicatorText}>{bracketingMode.toUpperCase()}</Text>
+                )}
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.flipButton} onPress={toggleCameraFacing}>
-              <Ionicons name="camera-reverse" size={32} color="white" />
+            <TouchableOpacity style={styles.galleryButton} onPress={() => setShowPhotoEditor(true)}>
+              <Ionicons name="images" size={24} color="white" />
             </TouchableOpacity>
           </View>
 
@@ -1303,13 +1617,13 @@ const styles = StyleSheet.create({
   },
   ghostSliderContainer: {
     position: 'absolute',
-    bottom: 140,
+    bottom: 100,
     alignSelf: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(10, 10, 20, 0.8)',
-    borderRadius: 24,
-    padding: 16,
-    width: 260,
+    borderRadius: 20,
+    padding: 12,
+    width: 220,
     borderWidth: 1,
     borderColor: 'rgba(76, 217, 100, 0.3)',
   },
@@ -1370,19 +1684,19 @@ const styles = StyleSheet.create({
   },
   instructionCard: {
     position: 'absolute',
-    top: 100,
-    alignSelf: 'center', // Centered!
-    width: '90%', // Wider
-    maxWidth: 400,
-    backgroundColor: 'rgba(5, 5, 5, 0.9)', // Deep black
-    borderRadius: 20,
-    padding: 20,
+    top: 80,
+    alignSelf: 'center',
+    width: '85%',
+    maxWidth: 350,
+    backgroundColor: 'rgba(5, 5, 5, 0.9)',
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 217, 100, 0.3)', // Subtle green border
+    borderColor: 'rgba(76, 217, 100, 0.3)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   instructionCardMinimized: {
     position: 'absolute',
@@ -1533,67 +1847,238 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 80,
     left: 20,
-    backgroundColor: 'rgba(10, 10, 20, 0.8)',
-    padding: 12,
-    borderRadius: 12,
+    backgroundColor: 'rgba(5, 5, 15, 0.9)',
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(76, 217, 100, 0.3)',
+    borderColor: 'rgba(76, 217, 100, 0.4)',
+    shadowColor: '#4CD964',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   proText: {
     color: '#4CD964',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: 8,
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   proMetrics: {
-    gap: 4,
+    gap: 6,
   },
   proMetricText: {
     color: 'white',
-    fontSize: 11,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '600',
+    fontFamily: 'monospace',
   },
-  feedbackButton: {
+  topRightControls: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  compactButton: {
+    padding: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  activeCompactButton: {
+    backgroundColor: 'rgba(76, 217, 100, 0.2)',
+    borderColor: '#4CD964',
+  },
+  gridOverlay: {
+    flex: 1,
+  },
+  gridLine: {
     position: 'absolute',
-    bottom: 140,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  histogramContainer: {
+    position: 'absolute',
+    top: 80,
+    right: 20,
+    width: 80,
+    height: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 6,
+    padding: 6,
+  },
+  histogram: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 1,
+  },
+  histogramBar: {
+    flex: 1,
+    backgroundColor: '#4CD964',
+    opacity: 0.7,
+    minHeight: 2,
+  },
+  // Dropdown Controls
+  dropdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  proControlsDropdown: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.4)',
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  controlRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  controlLabel: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  controlButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+  },
+  controlButton: {
+    padding: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 4,
+  },
+  controlValue: {
+    color: '#4CD964',
+    fontSize: 12,
+    fontWeight: '700',
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  controlToggle: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
     borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  controlToggleActive: {
+    backgroundColor: 'rgba(76, 217, 100, 0.2)',
     borderColor: '#4CD964',
+  },
+  controlToggleText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  displayOptionsDropdown: {
+    position: 'absolute',
+    top: 60,
+    right: 70,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.4)',
+    minWidth: 140,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    gap: 8,
+  },
+  optionRowActive: {
+    backgroundColor: 'rgba(76, 217, 100, 0.2)',
+  },
+  optionText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  feedbackControls: {
+    position: 'absolute',
+    bottom: 120,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  autoFeedbackButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  autoFeedbackActive: {
+    borderColor: '#4CD964',
+    backgroundColor: 'rgba(76, 217, 100, 0.1)',
     shadowColor: '#4CD964',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6, // Strong glow
-    shadowRadius: 15,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
-  feedbackButtonText: {
+  autoFeedbackText: {
     color: 'white',
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: 14,
+  },
+  autoFeedbackTextActive: {
+    color: '#4CD964',
+  },
+  manualFeedbackButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#4CD964',
+  },
+  manualFeedbackText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
   },
   thumbnailPreview: {
     position: 'absolute',
-    bottom: 150,
+    bottom: 130,
     left: 20,
-    width: 80,
-    height: 80,
-    borderRadius: 12,
+    width: 60,
+    height: 60,
+    borderRadius: 8,
     overflow: 'hidden',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: 'white',
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
   },
   thumbnailImage: {
     width: '100%',
@@ -1601,18 +2086,14 @@ const styles = StyleSheet.create({
   },
   modeIndicator: {
     position: 'absolute',
-    bottom: 250,
+    bottom: 220,
     alignSelf: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(76, 217, 100, 0.4)',
-    shadowColor: '#4CD964',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
   },
   modeIndicatorText: {
     color: '#4CD964',
@@ -1638,10 +2119,10 @@ const styles = StyleSheet.create({
   },
   modeSelectorContainer: {
     position: 'absolute',
-    bottom: 180,
+    bottom: 160,
     left: 0,
     right: 0,
-    height: 60,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1679,23 +2160,23 @@ const styles = StyleSheet.create({
   },
   bottomControls: {
     paddingBottom: 40,
-    paddingHorizontal: 30,
+    paddingHorizontal: 40,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  spacer: {
-    width: 50,
+  galleryButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   shutterContainer: {
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 50,
-    padding: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    alignItems: 'center',
   },
   shutterButton: {
     width: 70,
@@ -1704,23 +2185,42 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
   shutterInner: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: 'white',
-    borderWidth: 0,
+  },
+  shutterButtonCapturing: {
+    borderColor: '#FF6B35',
+    backgroundColor: 'rgba(255, 107, 53, 0.1)',
+  },
+  shutterButtonAdvanced: {
+    borderColor: '#4CD964',
+  },
+  shutterInnerCapturing: {
+    backgroundColor: '#FF6B35',
+  },
+  modeIndicatorText: {
+    position: 'absolute',
+    bottom: -25,
+    color: '#4CD964',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
   flipButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   focusIndicator: {
     position: 'absolute',

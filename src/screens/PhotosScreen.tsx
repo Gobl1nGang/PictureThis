@@ -6,6 +6,7 @@ import * as MediaLibrary from 'expo-media-library';
 import * as ImagePicker from 'expo-image-picker';
 import Constants from 'expo-constants';
 import PhotoEditor from './PhotoEditor';
+import { SocialShareModal } from '../components/SocialShareModal';
 
 
 const { width } = Dimensions.get('window');
@@ -327,6 +328,8 @@ export default function PhotosScreen() {
   const [analysisImageUri, setAnalysisImageUri] = useState<string>('');
   const [editorVisible, setEditorVisible] = useState(false);
   const [editorImageUri, setEditorImageUri] = useState<string | null>(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareImageUri, setShareImageUri] = useState<string | null>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -576,6 +579,17 @@ export default function PhotosScreen() {
     // Refresh photos to show the newly saved edit
     loadPhotos();
     handleEditorClose();
+  };
+
+  const handleSharePhoto = async (photo: MediaLibrary.Asset) => {
+    try {
+      const resolvedUri = await resolveAssetUri(photo);
+      setShareImageUri(resolvedUri);
+      setShareModalVisible(true);
+      closePhotoModal();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load photo for sharing');
+    }
   };
 
 
@@ -906,6 +920,27 @@ export default function PhotosScreen() {
                     </TouchableOpacity>
 
                     <SetReferenceButton onPress={() => handleSetReference(selectedPhoto)} />
+
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={async () => {
+                        const resolvedUri = await resolveAssetUri(selectedPhoto);
+                        global.inspirationImageUri = resolvedUri;
+                        Alert.alert('Set as Inspiration', 'This photo is now available as an overlay in the camera');
+                        closePhotoModal();
+                      }}
+                    >
+                      <Ionicons name="heart-outline" size={24} color="white" />
+                      <Text style={styles.editButtonText}>Inspire</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.editButton}
+                      onPress={() => handleSharePhoto(selectedPhoto)}
+                    >
+                      <Ionicons name="share-outline" size={24} color="white" />
+                      <Text style={styles.editButtonText}>Share</Text>
+                    </TouchableOpacity>
                   </View>
 
                   <PhotoModalContent photo={selectedPhoto} />
@@ -920,6 +955,18 @@ export default function PhotosScreen() {
         onClose={() => setAnalysisModalVisible(false)}
         imageUri={analysisImageUri}
       />
+
+      {/* Social Share Modal */}
+      {shareModalVisible && shareImageUri && (
+        <SocialShareModal
+          visible={shareModalVisible}
+          onClose={() => {
+            setShareModalVisible(false);
+            setShareImageUri(null);
+          }}
+          imageUri={shareImageUri}
+        />
+      )}
     </SafeAreaView>
   );
 }
