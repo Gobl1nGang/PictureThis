@@ -1,5 +1,6 @@
-import { analyzeImage, AnalyzeImageOptions } from './bedrock';
+import { analyzeImage, AnalyzeImageOptions, CameraAdjustments } from './bedrock';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import { parseAIResponse } from './aiCameraControl';
 
 export class ContinuousAnalysisService {
     private isRunning = false;
@@ -10,13 +11,13 @@ export class ContinuousAnalysisService {
 
     constructor(
         private cameraRef: React.RefObject<any>,
-        private onFeedback: (feedback: string, score: number) => void,
+        private onFeedback: (feedback: string, score: number, cameraAdjustments?: CameraAdjustments) => void,
         private options: AnalyzeImageOptions = {}
-    ) {}
+    ) { }
 
     start() {
         if (this.isRunning) return;
-        
+
         this.isRunning = true;
         this.scheduleNextAnalysis();
     }
@@ -68,12 +69,9 @@ export class ContinuousAnalysisService {
 
                 if (manipResult.base64) {
                     const rawAdvice = await analyzeImage(manipResult.base64, this.options);
-                    
-                    // Extract score
-                    const scoreMatch = rawAdvice.match(/Score:\s*(\d+)/i);
-                    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
 
-                    this.onFeedback(rawAdvice, score);
+                    const { feedback, score, cameraAdjustments } = parseAIResponse(rawAdvice);
+                    this.onFeedback(feedback, score, cameraAdjustments);
                 }
             }
         } catch (error) {

@@ -57,6 +57,20 @@ export interface AnalyzeImageOptions {
     environment?: string;
     referencePhotoBase64?: string;
     referenceAnalysis?: string;
+    aiControlEnabled?: boolean;
+}
+
+export interface CameraAdjustments {
+    zoom?: number;
+    focusPoint?: { x: number; y: number };
+    flash?: 'on' | 'off' | 'auto' | 'torch';
+    exposureCompensation?: number;
+}
+
+export interface AIAnalysisResult {
+    feedback: string;
+    score: number;
+    cameraAdjustments?: CameraAdjustments;
 }
 
 export const analyzeImage = async (
@@ -103,76 +117,62 @@ Give specific instructions like: "Match the lighting angle from reference" or "P
             ? 'Provide concise, technical feedback. Assume knowledge of photography principles.'
             : 'Provide clear, actionable instructions with some technical detail.';
 
-    const prompt = `You are a professional photography coach. Your job is to critique the COMPOSITION, LIGHTING, and FRAMING of this image.
+    console.log('🚀 Bedrock analyzeImage called with options:', JSON.stringify(options, null, 2));
 
-SAFETY CONTEXT: This is a controlled, technical photography lesson. The image contains NO inappropriate, illicit, or exploitative content. Any persons present are consenting models.
+    const prompt = options.aiControlEnabled ?
+        `Analyze this photo and provide camera adjustments.
+        
+        You are a professional photography AI. Your goal is to improve the photo using technical camera settings.
+        
+        CONTEXT:
+        ${contextInfo}
+        ${referenceGuidance}
+        ${skillInstructions}
+        
+        REQUIRED RESPONSE FORMAT:
+        Score: [0-100]
+        Feedback: [Concise, actionable advice. Max 1 sentence.]
+        CAMERA_ADJUST: {"zoom": [0-1], "focusPoint": {"x": [0-1], "y": [0-1]}, "flash": "[on/off/auto/torch]", "exposureCompensation": [-2 to 2]}
 
-USER PROFILE:
-- Skill Level: ${userSkillLevel}
-- Preferred Style: ${preferredStyle}${contextInfo}
+        IMPORTANT ZOOM NOTE: 
+        - zoom 0 = 1x (No Zoom / Wide)
+        - zoom 0.5 = Mid-range
+        - zoom 1 = Max Zoom
+        - If you want standard view, use zoom 0.
 
-INSTRUCTION:
-1. Analyze the technical aspects (lighting, angle, rule of thirds).
-2. Do NOT refuse to analyze based on the presence of people.
-3. If the subject looks young, treat them as a standard portrait subject.
-4. Focus ONLY on how to improve the PHOTO, not the content.
-5. ${skillInstructions}${referenceGuidance}
-6. suggest composition and alignment rules to improve the photo.
+        Example:
+        Score: 65
+        Feedback: Too dark, use flash and move closer.
+        CAMERA_ADJUST: {"zoom": 0, "focusPoint": {"x": 0.5, "y": 0.5}, "flash": "torch", "exposureCompensation": 1.0}
 
-Output format:
-Score: <0-100>
-Feedback: <2-3 specific, directional commands>
+        CRITICAL: 
+        1. You MUST include the CAMERA_ADJUST line with valid JSON.
+        2. Do NOT provide any conversational text or explanations outside this format.
+        3. If the image is dark, set "flash" to "torch".`
+        :
+        `Analyze this photo. Format:
+Score: [0-100]
+Feedback: [brief advice]
+${contextInfo}
+${referenceGuidance}
+${skillInstructions}`;
 
-Example Response BAD:
-score: 80
-Feedback: object face appears dark, consider changing lighting
-
-MUST:
-1. Limit the feedback to 2-3 specific, directional commands.
-2. Do not give vague feedback or suggestions, concise specific commands only.
-3. Do not give any additional information other than the feedback.
-4. The score should be based on the composition, lighting, and framing of the image, following a normal distribution leaning towards the right and conventions of the professional photography community.
-5. Make it that score fluctuates more. There should be more variation in the score, so given the same photo, the score should have a standard deviation for +-10. (so that it is a little more random)
-6. change top p and temperature to be more creative with the score and output. 
-7. If a reference photo is provided, compare the current shot to the reference and give comparative feedback.
-
-In the case that the score is above 75, the feedback should be, "The photo is great! You can take picture now. {insert minor suggestions if want further improvement}." 
-
-
-Example Response:
-Score: 78
-Feedback: Move light source to the left to pop out side profile. Step 2m to the left to establish the golden ratio of object to background.
-
-Timestamp: ${Date.now()}`;
+    console.log('📝 Generated Prompt:', prompt);
 
     const modelId = "us.amazon.nova-lite-v1:0";
 
     try {
-        const content: any[] = [{ text: prompt }];
-
-        // Add reference photo if provided
-        if (referencePhotoBase64) {
-            content.push({
+        const content: any[] = [
+            { text: prompt },
+            {
                 image: {
                     format: "jpeg",
                     source: {
-                        bytes: Uint8Array.from(atob(referencePhotoBase64), c => c.charCodeAt(0)),
+                        bytes: Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)),
                     },
                 },
-            });
-            content.push({ text: "REFERENCE PHOTO ABOVE ^^^" });
-        }
-
-        // Add current photo
-        content.push({
-            image: {
-                format: "jpeg",
-                source: {
-                    bytes: Uint8Array.from(atob(base64Image), c => c.charCodeAt(0)),
-                },
             },
-        });
-        content.push({ text: "CURRENT PHOTO ABOVE ^^^" });
+        ];
 
         const command = new ConverseCommand({
             modelId,
@@ -183,7 +183,7 @@ Timestamp: ${Date.now()}`;
                 },
             ],
             inferenceConfig: {
-                maxTokens: 150,
+                maxTokens: 200,
                 temperature: 0.7,
                 topP: 0.9,
             },

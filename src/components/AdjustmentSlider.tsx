@@ -59,8 +59,8 @@ export default function AdjustmentSlider({
                     value={value}
                     onValueChange={onValueChange}
                     onSlidingComplete={onSlidingComplete}
-                    minimumTrackTintColor="#007AFF"
-                    maximumTrackTintColor="#E5E5EA"
+                    minimumTrackTintColor="#4CD964"
+                    maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
                     thumbStyle={styles.thumb}
                 />
                 
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     label: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: 'white',
     },
     valueContainer: {
         alignItems: 'flex-end',
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
         height: 40,
     },
     thumb: {
-        backgroundColor: '#007AFF',
+        backgroundColor: '#4CD964',
         width: 20,
         height: 20,
     },
@@ -140,7 +140,7 @@ const styles = StyleSheet.create({
         top: 15,
         width: 3,
         height: 10,
-        backgroundColor: '#007AFF',
+        backgroundColor: '#4CD964',
         borderRadius: 1.5,
         marginLeft: -1.5,
         zIndex: 1,
@@ -153,11 +153,11 @@ const styles = StyleSheet.create({
     },
     rangeLabel: {
         fontSize: 12,
-        color: '#666',
+        color: '#999',
     },
     defaultValue: {
         fontSize: 12,
-        color: '#666',
+        color: '#999',
         marginTop: 2,
     },
     defaultIndicator: {

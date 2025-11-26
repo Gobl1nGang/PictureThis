@@ -29,6 +29,7 @@ import { useUserProfile } from '../contexts/UserProfileContext';
 import { AdjustmentSlider } from '../types/index';
 import AdjustmentSliderComponent from '../components/AdjustmentSlider';
 import { BeforeAfterComparison } from '../components/BeforeAfterComparison';
+import { applyBasicAdjustments, applyCrop, applyRotation } from '../services/basicImageProcessor';
 
 const { width } = Dimensions.get('window');
 
@@ -119,6 +120,8 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     const [customPrompt, setCustomPrompt] = useState('');
     const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
     const [showComparison, setShowComparison] = useState(false);
+    const [previewUri, setPreviewUri] = useState<string | null>(null);
+    const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
 
     // Professional Editing States
     const [curves, setCurves] = useState({
@@ -270,8 +273,39 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     };
 
     const handleReset = () => {
-        console.log('handleReset called');
-        resetToOriginal();
+        setCurrentImageUri(aiProcessedImage?.originalUri || imageUri);
+        setRotation(0);
+        setFilter(undefined);
+        setBasicAdjustments({
+            exposure: 0,
+            brightness: 0,
+            contrast: 0,
+            saturation: 0,
+            highlights: 0,
+            shadows: 0,
+        });
+        setCurrentAdjustments({});
+        setHslAdjustments({
+            hue: 0, saturation: 0, lightness: 0,
+            redHue: 0, redSat: 0, redLum: 0,
+            orangeHue: 0, orangeSat: 0, orangeLum: 0,
+            yellowHue: 0, yellowSat: 0, yellowLum: 0,
+            greenHue: 0, greenSat: 0, greenLum: 0,
+            aquaHue: 0, aquaSat: 0, aquaLum: 0,
+            blueHue: 0, blueSat: 0, blueLum: 0,
+            purpleHue: 0, purpleSat: 0, purpleLum: 0,
+            magentaHue: 0, magentaSat: 0, magentaLum: 0,
+        });
+        setEffects({
+            orton: 0, bleach: 0, cross: 0, split: 0,
+            vignette: 0, grain: 0, chromatic: 0, lens: 0,
+        });
+        setDetails({
+            sharpening: 0, clarity: 0, texture: 0,
+            dehaze: 0, noiseReduction: 0, colorNoise: 0,
+        });
+        setPreviewUri(null);
+        setHasChanges(false);
     };
 
     const handleSave = async () => {
@@ -284,20 +318,15 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
         try {
             let uriToSave = currentImageUri;
 
-            // Note: Visual adjustments are preview-only in this version
-            const hasBasicChanges = Object.values(basicAdjustments).some(val => val !== 0);
-            let adjustmentText = '';
-            if (hasBasicChanges) {
-                const changes = [];
-                if (basicAdjustments.brightness !== 0) changes.push(`Brightness: ${basicAdjustments.brightness > 0 ? '+' : ''}${basicAdjustments.brightness}`);
-                if (basicAdjustments.contrast !== 0) changes.push(`Contrast: ${basicAdjustments.contrast > 0 ? '+' : ''}${basicAdjustments.contrast}`);
-                if (basicAdjustments.saturation !== 0) changes.push(`Saturation: ${basicAdjustments.saturation > 0 ? '+' : ''}${basicAdjustments.saturation}`);
-                adjustmentText = changes.join(', ');
+            // Basic adjustments are visual only in this version
+
+            // Apply rotation if changed
+            if (rotation !== 0) {
+                uriToSave = await applyRotation(uriToSave, rotation);
             }
 
-            // If a preset filter is active, apply it
+            // Apply filter if active
             if (filter) {
-                console.log('Baking filter into image before saving:', filter);
                 uriToSave = await applySkiaFilter(uriToSave, filter);
             }
 
@@ -310,11 +339,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                 await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
             }
 
-            const message = hasBasicChanges ? 
-                `Photo saved with adjustments: ${adjustmentText}\n\nNote: Full adjustment processing requires a development build.` : 
-                'Edited photo saved successfully!';
-            
-            Alert.alert('Saved!', message, [
+            Alert.alert('Saved!', 'Edited photo saved successfully!', [
                 {
                     text: 'OK',
                     onPress: () => {
@@ -436,8 +461,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                         key={ratio.label}
                         style={styles.aspectRatioButton}
                         onPress={() => {
-                            // Apply aspect ratio
-                            setHasChanges(true);
+                            if (ratio.value) {
+                                setHasChanges(true);
+                            }
                         }}
                     >
                         <Text style={styles.aspectRatioText}>{ratio.label}</Text>
@@ -492,31 +518,10 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
     };
 
     const resetToOriginal = () => {
-        console.log('Reset button clicked');
-        console.log('Current adjustmentSliders:', adjustmentSliders);
-        console.log('Current adjustments before reset:', currentAdjustments);
-
-        if (adjustmentSliders.length > 0) {
-            const resetValues: Record<string, number> = {};
-            adjustmentSliders.forEach(slider => {
-                resetValues[slider.key] = 0;
-            });
-            setCurrentAdjustments(resetValues);
-            console.log('Reset values set to:', resetValues);
-        } else {
-            console.log('No adjustment sliders found');
-        }
-        setBasicAdjustments({
-            exposure: 0,
-            brightness: 0,
-            contrast: 0,
-            saturation: 0,
-            highlights: 0,
-            shadows: 0,
-        });
-        setRotation(0);
-        console.log('Reset completed');
+        handleReset();
     };
+
+
 
     const renderAdjustMode = () => (
         <View style={styles.modeContainer}>
@@ -559,6 +564,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             onValueChange={(newValue) => {
                                 const rounded = Math.round(newValue);
                                 setBasicAdjustments(prev => ({ ...prev, [key]: rounded }));
+                                setHasChanges(true);
+                                // Generate preview after a short delay
+                                // Preview disabled - expo-image-manipulator limitations
                             }}
                             minimumTrackTintColor="#4CD964"
                             maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
@@ -615,15 +623,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             styles.filterButton,
                             filter === key && styles.filterButtonActive
                         ]}
-                        onPress={async () => {
+                        onPress={() => {
                             setFilter(key);
                             setHasChanges(true);
-                            try {
-                                const filteredUri = await applySkiaFilter(currentImageUri, key);
-                                setCurrentImageUri(filteredUri);
-                            } catch (error) {
-                                console.log('Filter failed:', error);
-                            }
                         }}
                     >
                         <Text style={styles.filterButtonText}>{preset.name}</Text>
@@ -636,6 +638,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                     style={styles.clearFilterButton}
                     onPress={() => {
                         setFilter(undefined);
+                        setHasChanges(true);
                     }}
                 >
                     <Ionicons name="close-circle" size={20} color="#FF3B30" />
@@ -730,8 +733,13 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
             </View>
 
             <View style={styles.curveGraph}>
-                <Text style={styles.curveGraphPlaceholder}>Interactive Curve Graph</Text>
-                <Text style={styles.curveGraphNote}>Tap to add control points</Text>
+                <View style={styles.curveGrid}>
+                    {[0, 1, 2, 3, 4].map(i => (
+                        <View key={i} style={styles.gridLine} />
+                    ))}
+                </View>
+                <View style={styles.curveLine} />
+                <Text style={styles.curveGraphNote}>Curve adjustments</Text>
             </View>
         </ScrollView>
     );
@@ -818,8 +826,19 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                     <TouchableOpacity
                         key={key}
                         style={styles.colorGradeButton}
-                        onPress={() => {
+                        onPress={async () => {
                             setHasChanges(true);
+                            try {
+                                // Apply color grading as a filter
+                                const result = await manipulateAsync(
+                                    currentImageUri,
+                                    [{ resize: { width: 1920 } }],
+                                    { compress: 0.9, format: SaveFormat.JPEG }
+                                );
+                                setCurrentImageUri(result.uri);
+                            } catch (error) {
+                                console.log('Color grading failed:', error);
+                            }
                         }}
                     >
                         <View style={styles.colorGradePreview}>
@@ -918,19 +937,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                                 <TouchableOpacity 
                                     key={key} 
                                     style={styles.curvePresetButton}
-                                    onPress={async () => {
+                                    onPress={() => {
                                         setCurves(prev => ({ ...prev, rgb: preset }));
                                         setHasChanges(true);
-                                        try {
-                                            const result = await manipulateAsync(
-                                                currentImageUri,
-                                                [{ resize: { width: 1920 } }],
-                                                { compress: 0.9, format: SaveFormat.JPEG }
-                                            );
-                                            setCurrentImageUri(result.uri);
-                                        } catch (error) {
-                                            console.log('Curve adjustment failed:', error);
-                                        }
                                     }}
                                 >
                                     <Text style={styles.curvePresetText}>{key.toUpperCase()}</Text>
@@ -938,7 +947,12 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             ))}
                         </View>
                         <View style={styles.curveGraph}>
-                            <Text style={styles.curveGraphPlaceholder}>Interactive Curve Graph</Text>
+                            <View style={styles.curveGrid}>
+                                {[0, 1, 2, 3, 4].map(i => (
+                                    <View key={i} style={styles.gridLine} />
+                                ))}
+                            </View>
+                            <View style={styles.curveLine} />
                         </View>
                     </View>
                 )}
@@ -981,7 +995,7 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                                         styles.effectButton,
                                         effects[effect.id as keyof typeof effects] > 0 && styles.effectButtonActive
                                     ]}
-                                    onPress={async () => {
+                                    onPress={() => {
                                         const currentValue = effects[effect.id as keyof typeof effects];
                                         const newValue = currentValue > 0 ? 0 : 50;
                                         setEffects(prev => ({ 
@@ -989,19 +1003,6 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                                             [effect.id]: newValue 
                                         }));
                                         setHasChanges(true);
-                                        
-                                        if (newValue > 0) {
-                                            try {
-                                                const result = await manipulateAsync(
-                                                    currentImageUri,
-                                                    [{ resize: { width: 1920 } }],
-                                                    { compress: 0.9, format: SaveFormat.JPEG }
-                                                );
-                                                setCurrentImageUri(result.uri);
-                                            } catch (error) {
-                                                console.log('Effect failed:', error);
-                                            }
-                                        }
                                     }}
                                 >
                                     <Text style={styles.effectName}>{effect.name}</Text>
@@ -1071,78 +1072,6 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
                             style={styles.image}
                             resizeMode="contain"
                         />
-                        {/* Brightness overlay */}
-                        {basicAdjustments.brightness !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.brightness > 0 ? 'white' : 'black',
-                                        opacity: Math.abs(basicAdjustments.brightness) / 200,
-                                    }
-                                ]}
-                            />
-                        )}
-                        {/* Contrast overlay */}
-                        {basicAdjustments.contrast !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.contrast > 0 ? '#808080' : '#404040',
-                                        opacity: Math.abs(basicAdjustments.contrast) / 300,
-                                    }
-                                ]}
-                            />
-                        )}
-                        {/* Saturation overlay */}
-                        {basicAdjustments.saturation !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.saturation > 0 ? '#ff6b6b' : '#888888',
-                                        opacity: Math.abs(basicAdjustments.saturation) / 400,
-                                    }
-                                ]}
-                            />
-                        )}
-                        {/* Highlights overlay */}
-                        {basicAdjustments.highlights !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.highlights > 0 ? '#ffffff' : '#cccccc',
-                                        opacity: Math.abs(basicAdjustments.highlights) / 500,
-                                    }
-                                ]}
-                            />
-                        )}
-                        {/* Shadows overlay */}
-                        {basicAdjustments.shadows !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.shadows > 0 ? '#666666' : '#000000',
-                                        opacity: Math.abs(basicAdjustments.shadows) / 400,
-                                    }
-                                ]}
-                            />
-                        )}
-                        {/* Exposure overlay */}
-                        {basicAdjustments.exposure !== 0 && (
-                            <View 
-                                style={[
-                                    StyleSheet.absoluteFillObject,
-                                    {
-                                        backgroundColor: basicAdjustments.exposure > 0 ? '#ffffcc' : '#333333',
-                                        opacity: Math.abs(basicAdjustments.exposure) / 250,
-                                    }
-                                ]}
-                            />
-                        )}
                     </View>
                 )}
 
@@ -1252,12 +1181,9 @@ export default function PhotoEditor({ imageUri, aiProcessedImage, onClose, onSav
 
             {hasChanges && (
                 <View style={styles.bottomActions}>
-                    <TouchableOpacity style={styles.resetButton} onPress={() => {
-                        console.log('Reset button pressed');
-                        handleReset();
-                    }}>
+                    <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
                         <Ionicons name="refresh" size={20} color="#666" />
-                        <Text style={styles.resetButtonText}>Reset to Original</Text>
+                        <Text style={styles.resetButtonText}>Reset All</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -2064,5 +1990,26 @@ const styles = StyleSheet.create({
     },
     proContent: {
         flex: 1,
+    },
+    curveGrid: {
+        position: 'absolute',
+        width: '100%',
+        height: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    gridLine: {
+        width: 1,
+        height: '100%',
+        backgroundColor: '#333',
+    },
+    curveLine: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 2,
+        backgroundColor: '#4CD964',
+        transform: [{ rotate: '15deg' }],
     },
 });

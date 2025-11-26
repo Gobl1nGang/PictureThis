@@ -32,6 +32,7 @@ import { AIFeedback, AIInstruction } from '../types/index';
 import { VisualInstructionOverlay, InstructionType } from './VisualInstructionOverlay';
 import { CompositionOverlay, CompositionType } from './CompositionOverlay';
 import AdvancedCameraFeatures from '../services/advancedCameraFeatures';
+import { parseAIResponse } from '../services/aiCameraControl';
 
 const { width, height } = Dimensions.get('window');
 
@@ -110,6 +111,10 @@ export default function AppCamera() {
   const [timerMode, setTimerMode] = useState<0 | 2 | 5 | 10>(0);
   const [bracketingMode, setBracketingMode] = useState<'off' | 'hdr' | 'focus' | 'burst' | 'longexp'>('off');
   const [isCapturing, setIsCapturing] = useState(false);
+  const [exposureCompensation, setExposureCompensation] = useState(0);
+  const [focusDistance, setFocusDistance] = useState(0.5);
+  const [showFocusSlider, setShowFocusSlider] = useState(false);
+  const [aiControlEnabled, setAiControlEnabled] = useState(false);
 
   // Ghost Overlay State
   const [showGhostOverlay, setShowGhostOverlay] = useState(false);
@@ -141,8 +146,29 @@ export default function AppCamera() {
   const [minimizedSide, setMinimizedSide] = useState<'left' | 'right'>('right');
   const instructionPanAnim = useRef(new Animated.Value(0)).current;
 
+  // Animated zoom for smooth AI adjustments
+  const animatedZoom = useRef(new Animated.Value(0)).current;
+
   // Scanning Animation - Smoother and faster
   const scanAnim = useRef(new Animated.Value(0)).current;
+
+  // Helper function to smoothly animate zoom changes
+  const animateZoomChange = (targetZoom: number) => {
+    Animated.timing(animatedZoom, {
+      toValue: targetZoom,
+      duration: 800, // 800ms smooth transition
+      easing: Easing.inOut(Easing.ease),
+      useNativeDriver: false,
+    }).start();
+  };
+
+  // Sync animated zoom with actual zoom state
+  useEffect(() => {
+    const listener = animatedZoom.addListener(({ value }) => {
+      setZoom(value);
+    });
+    return () => animatedZoom.removeListener(listener);
+  }, []);
 
   useEffect(() => {
     if (isAnalyzing) {
@@ -190,10 +216,48 @@ export default function AppCamera() {
     if (permission?.granted && autoFeedbackEnabled && cameraRef.current) {
       const analysisService = new ContinuousAnalysisService(
         cameraRef,
-        (feedback: string, score: number) => {
+        (feedback: string, score: number, cameraAdjustments?: any) => {
           try {
             const parsedFeedback = InstructionEngine.parseInstructions(feedback, score);
             setAiFeedback(parsedFeedback);
+
+            // Apply AI camera adjustments if enabled
+            if (aiControlEnabled && cameraAdjustments) {
+              console.log('🎬 Applying AI adjustments with animation:', cameraAdjustments);
+
+              if (cameraAdjustments.zoom !== undefined) {
+                const newZoom = Math.max(0, Math.min(1, cameraAdjustments.zoom));
+                console.log('📷 Animating zoom:', zoom, '->', newZoom);
+                animateZoomChange(newZoom);
+              }
+
+              if (cameraAdjustments.focusPoint) {
+                const focusX = Math.max(0, Math.min(1, cameraAdjustments.focusPoint.x));
+                const focusY = Math.max(0, Math.min(1, cameraAdjustments.focusPoint.y));
+                console.log('🎯 Showing focus indicator at:', focusX, focusY);
+
+                setFocusPoint({ x: focusX * width, y: focusY * height });
+
+                focusAnim.setValue(0);
+                Animated.sequence([
+                  Animated.timing(focusAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+                  Animated.delay(1200), // Show longer so user can see it
+                  Animated.timing(focusAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+                ]).start(() => setFocusPoint(null));
+              }
+
+              if (cameraAdjustments.flash && ['on', 'off', 'auto', 'torch'].includes(cameraAdjustments.flash)) {
+                const newFlashMode = cameraAdjustments.flash === 'on' ? 'torch' : cameraAdjustments.flash;
+                console.log('⚡ Changing flash:', flash, '->', newFlashMode);
+                setFlash(newFlashMode as 'on' | 'off' | 'auto' | 'torch');
+              }
+
+              if (cameraAdjustments.exposureCompensation !== undefined) {
+                const newExposure = Math.max(-2, Math.min(2, cameraAdjustments.exposureCompensation));
+                console.log('☀️ Changing exposure:', exposureCompensation, '->', newExposure);
+                setExposureCompensation(newExposure);
+              }
+            }
           } catch (error) {
             console.log('Continuous analysis parse error:', error);
           }
@@ -204,6 +268,7 @@ export default function AppCamera() {
           contextType: currentContext?.type,
           timeOfDay: currentContext?.timeOfDay,
           environment: currentContext?.environment,
+          aiControlEnabled: aiControlEnabled,
         }
       );
       setContinuousAnalysis(analysisService);
@@ -216,7 +281,7 @@ export default function AppCamera() {
       continuousAnalysis.stop();
       setContinuousAnalysis(null);
     }
-  }, [permission?.granted, autoFeedbackEnabled, profile, currentContext]);
+  }, [permission?.granted, autoFeedbackEnabled, profile, currentContext, aiControlEnabled]);
 
   // Sync reference photo to context
   useEffect(() => {
@@ -473,20 +538,54 @@ export default function AppCamera() {
               }
             }
 
-            const rawAdvice = await analyzeImage(manipResult.base64, options);
+            const rawAdvice = await analyzeImage(manipResult.base64, { ...options, aiControlEnabled });
 
             try {
-              const text = rawAdvice.trim();
-              let score = 0;
+              const { feedback: cleanFeedback, score, cameraAdjustments } = parseAIResponse(rawAdvice);
 
-              // Extract Score
-              const scoreMatch = text.match(/Score:\s*(\d+)/i);
-              if (scoreMatch) {
-                score = parseInt(scoreMatch[1], 10);
+              // Apply AI camera adjustments if enabled
+              if (aiControlEnabled && cameraAdjustments) {
+                console.log('🤖 Applying AI adjustments with animation:', cameraAdjustments);
+
+                if (cameraAdjustments.zoom !== undefined) {
+                  const newZoom = Math.max(0, Math.min(1, cameraAdjustments.zoom));
+                  console.log('📷 Animating zoom:', zoom, '->', newZoom);
+                  animateZoomChange(newZoom);
+                }
+
+                if (cameraAdjustments.focusPoint && cameraRef.current) {
+                  const focusX = Math.max(0, Math.min(1, cameraAdjustments.focusPoint.x));
+                  const focusY = Math.max(0, Math.min(1, cameraAdjustments.focusPoint.y));
+                  console.log('🎯 Showing focus indicator at:', focusX, focusY);
+
+                  // cameraRef.current.focusAsync({ x: focusX, y: focusY }).catch(e => console.log('Focus failed:', e));
+                  console.log('Focus point adjustment not supported in this version of expo-camera');
+                  setFocusPoint({ x: focusX * width, y: focusY * height });
+
+                  focusAnim.setValue(0);
+                  Animated.sequence([
+                    Animated.timing(focusAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
+                    Animated.delay(1200), // Show longer so user can see it
+                    Animated.timing(focusAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
+                  ]).start(() => setFocusPoint(null));
+                }
+
+                if (cameraAdjustments.flash && ['on', 'off', 'auto', 'torch'].includes(cameraAdjustments.flash)) {
+                  // Prefer torch over flash 'on' to avoid bursts during analysis
+                  const newFlashMode = cameraAdjustments.flash === 'on' ? 'torch' : cameraAdjustments.flash;
+                  console.log('⚡ Flash:', flash, '->', newFlashMode);
+                  setFlash(newFlashMode as 'on' | 'off' | 'auto' | 'torch');
+                }
+
+                if (cameraAdjustments.exposureCompensation !== undefined) {
+                  const newExposure = Math.max(-2, Math.min(2, cameraAdjustments.exposureCompensation));
+                  console.log('☀️ Exposure:', exposureCompensation, '->', newExposure);
+                  setExposureCompensation(newExposure);
+                }
               }
 
               // Parse into structured instructions
-              const feedback = InstructionEngine.parseInstructions(text, score);
+              const feedback = InstructionEngine.parseInstructions(cleanFeedback, score);
               setAiFeedback(feedback);
 
             } catch (e) {
@@ -726,12 +825,23 @@ export default function AppCamera() {
           facing={facing}
           ref={cameraRef}
           zoom={zoom}
-          autofocus="on"
+          autofocus={showFocusSlider ? "off" : "on"}
+          focusDistance={showFocusSlider ? focusDistance : undefined}
           enableTorch={flash === 'torch'}
-          onTouchEnd={(event) => {
+          flash={flash === 'torch' ? 'off' : flash}
+          exposureCompensation={exposureCompensation}
+          onTouchEnd={async (event) => {
             if (event.nativeEvent.touches.length <= 1) {
               const { locationX, locationY } = event.nativeEvent;
               setFocusPoint({ x: locationX, y: locationY });
+
+              // Focus on tapped area
+              try {
+                // await cameraRef.current?.focusAsync({ x: locationX / width, y: locationY / height });
+                console.log('Tap to focus handled natively or not supported via ref');
+              } catch (error) {
+                console.log('Focus failed:', error);
+              }
 
               // Animate focus indicator
               focusAnim.setValue(0);
@@ -916,15 +1026,15 @@ export default function AppCamera() {
                 />
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.compactButton, showProControls && styles.activeCompactButton]} 
+              <TouchableOpacity
+                style={[styles.compactButton, showProControls && styles.activeCompactButton]}
                 onPress={() => setShowProControls(!showProControls)}
               >
                 <Ionicons name="settings" size={20} color={showProControls ? '#4CD964' : 'white'} />
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.compactButton, showDisplayOptions && styles.activeCompactButton]} 
+              <TouchableOpacity
+                style={[styles.compactButton, showDisplayOptions && styles.activeCompactButton]}
                 onPress={() => setShowDisplayOptions(!showDisplayOptions)}
               >
                 <Ionicons name="eye" size={20} color={showDisplayOptions ? '#4CD964' : 'white'} />
@@ -1117,10 +1227,10 @@ export default function AppCamera() {
                 setAutoFeedbackEnabled(!autoFeedbackEnabled);
               }}
             >
-              <Ionicons 
-                name={autoFeedbackEnabled ? "flash" : "flash-off"} 
-                size={20} 
-                color={autoFeedbackEnabled ? "#4CD964" : "white"} 
+              <Ionicons
+                name={autoFeedbackEnabled ? "flash" : "flash-off"}
+                size={20}
+                color={autoFeedbackEnabled ? "#4CD964" : "white"}
               />
               <Text style={[styles.autoFeedbackText, autoFeedbackEnabled && styles.autoFeedbackTextActive]}>
                 Auto
@@ -1178,6 +1288,27 @@ export default function AppCamera() {
             </View>
           )}
 
+          {/* Manual Focus Slider */}
+          {showFocusSlider && (
+            <View style={styles.focusSliderContainer}>
+              <Text style={styles.focusSliderLabel}>Focus Distance</Text>
+              <Slider
+                style={{ width: 200, height: 40 }}
+                minimumValue={0}
+                maximumValue={1}
+                value={focusDistance}
+                onValueChange={setFocusDistance}
+                minimumTrackTintColor="#4CD964"
+                maximumTrackTintColor="#FFFFFF"
+                thumbTintColor="#4CD964"
+              />
+              <View style={styles.focusLabels}>
+                <Text style={styles.focusLabelText}>Near</Text>
+                <Text style={styles.focusLabelText}>Far</Text>
+              </View>
+            </View>
+          )}
+
           {/* Active Mode Indicator - Hide in landscape */}
           {activeMode.id !== 'photo' && !isLandscape && (
             <View style={styles.modeIndicator}>
@@ -1230,9 +1361,9 @@ export default function AppCamera() {
 
           {/* Pro Controls Dropdown */}
           {showProControls && (
-            <TouchableOpacity 
-              style={styles.dropdownOverlay} 
-              activeOpacity={1} 
+            <TouchableOpacity
+              style={styles.dropdownOverlay}
+              activeOpacity={1}
               onPress={() => setShowProControls(false)}
             >
               <TouchableOpacity style={styles.proControlsDropdown} activeOpacity={1}>
@@ -1248,7 +1379,7 @@ export default function AppCamera() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                
+
                 <View style={styles.controlRow}>
                   <Text style={styles.controlLabel}>Shutter</Text>
                   <View style={styles.controlButtons}>
@@ -1261,7 +1392,7 @@ export default function AppCamera() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                
+
                 <View style={styles.controlRow}>
                   <Text style={styles.controlLabel}>Aperture</Text>
                   <View style={styles.controlButtons}>
@@ -1274,11 +1405,11 @@ export default function AppCamera() {
                     </TouchableOpacity>
                   </View>
                 </View>
-                
+
                 <View style={styles.controlRow}>
                   <Text style={styles.controlLabel}>Mode</Text>
-                  <TouchableOpacity 
-                    style={[styles.controlToggle, bracketingMode !== 'off' && styles.controlToggleActive]} 
+                  <TouchableOpacity
+                    style={[styles.controlToggle, bracketingMode !== 'off' && styles.controlToggleActive]}
                     onPress={() => {
                       const modes: Array<'off' | 'hdr' | 'focus' | 'burst' | 'longexp'> = ['off', 'hdr', 'focus', 'burst', 'longexp'];
                       const currentIndex = modes.indexOf(bracketingMode);
@@ -1288,11 +1419,11 @@ export default function AppCamera() {
                     <Text style={styles.controlToggleText}>{bracketingMode.toUpperCase()}</Text>
                   </TouchableOpacity>
                 </View>
-                
+
                 <View style={styles.controlRow}>
                   <Text style={styles.controlLabel}>Timer</Text>
-                  <TouchableOpacity 
-                    style={[styles.controlToggle, timerMode > 0 && styles.controlToggleActive]} 
+                  <TouchableOpacity
+                    style={[styles.controlToggle, timerMode > 0 && styles.controlToggleActive]}
                     onPress={() => {
                       const timers: Array<0 | 2 | 5 | 10> = [0, 2, 5, 10];
                       const currentIndex = timers.indexOf(timerMode);
@@ -1308,30 +1439,30 @@ export default function AppCamera() {
 
           {/* Display Options Dropdown */}
           {showDisplayOptions && (
-            <TouchableOpacity 
-              style={styles.dropdownOverlay} 
-              activeOpacity={1} 
+            <TouchableOpacity
+              style={styles.dropdownOverlay}
+              activeOpacity={1}
               onPress={() => setShowDisplayOptions(false)}
             >
               <TouchableOpacity style={styles.displayOptionsDropdown} activeOpacity={1}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.optionRow, showHistogram && styles.optionRowActive]}
                   onPress={() => setShowHistogram(!showHistogram)}
                 >
                   <Ionicons name="bar-chart" size={16} color={showHistogram ? '#4CD964' : 'white'} />
                   <Text style={styles.optionText}>Histogram</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
                   style={[styles.optionRow, showGrid && styles.optionRowActive]}
                   onPress={() => setShowGrid(!showGrid)}
                 >
                   <Ionicons name="grid" size={16} color={showGrid ? '#4CD964' : 'white'} />
                   <Text style={styles.optionText}>Grid</Text>
                 </TouchableOpacity>
-                
+
                 {(referencePhoto || inspirationImage) && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={[styles.optionRow, showGhostOverlay && styles.optionRowActive]}
                     onPress={() => setShowGhostOverlay(!showGhostOverlay)}
                   >
@@ -1339,19 +1470,24 @@ export default function AppCamera() {
                     <Text style={styles.optionText}>Overlay</Text>
                   </TouchableOpacity>
                 )}
-                
-                <TouchableOpacity 
-                  style={styles.optionRow}
-                  onPress={() => {
-                    // Focus peaking toggle
-                    console.log('Focus peaking toggled');
-                  }}
+
+                <TouchableOpacity
+                  style={[styles.optionRow, showFocusSlider && styles.optionRowActive]}
+                  onPress={() => setShowFocusSlider(!showFocusSlider)}
                 >
-                  <Ionicons name="scan" size={16} color="white" />
-                  <Text style={styles.optionText}>Focus Peak</Text>
+                  <Ionicons name="scan" size={16} color={showFocusSlider ? '#4CD964' : 'white'} />
+                  <Text style={styles.optionText}>Manual Focus</Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity 
+
+                <TouchableOpacity
+                  style={[styles.optionRow, aiControlEnabled && styles.optionRowActive]}
+                  onPress={() => setAiControlEnabled(!aiControlEnabled)}
+                >
+                  <Ionicons name="hardware-chip" size={16} color={aiControlEnabled ? '#4CD964' : 'white'} />
+                  <Text style={styles.optionText}>AI Control</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
                   style={styles.optionRow}
                   onPress={() => {
                     // Zebras toggle
@@ -1372,12 +1508,12 @@ export default function AppCamera() {
             </TouchableOpacity>
 
             <View style={styles.shutterContainer}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.shutterButton,
                   isCapturing && styles.shutterButtonCapturing,
                   bracketingMode !== 'off' && styles.shutterButtonAdvanced
-                ]} 
+                ]}
                 onPress={takePicture}
                 disabled={isCapturing}
               >
@@ -1632,6 +1768,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 5,
     fontWeight: '600',
+  },
+  focusSliderContainer: {
+    position: 'absolute',
+    bottom: 180,
+    alignSelf: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 10, 20, 0.8)',
+    borderRadius: 20,
+    padding: 12,
+    width: 220,
+    borderWidth: 1,
+    borderColor: 'rgba(76, 217, 100, 0.3)',
+  },
+  focusSliderLabel: {
+    color: 'white',
+    fontSize: 12,
+    marginBottom: 5,
+    fontWeight: '600',
+  },
+  focusLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 200,
+    marginTop: 5,
+  },
+  focusLabelText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 10,
+    fontWeight: '500',
   },
   referenceIndicator: {
     position: 'absolute',
