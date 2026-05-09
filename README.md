@@ -17,7 +17,7 @@ An AI-powered camera coach that helps you take better photos in real-time.
 *   **Language**: TypeScript
 
 ## Setup
-
+ 
 ### Prerequisites
 *   **Node.js** (v18+)
 *   **npm** or **yarn**
